@@ -4,11 +4,14 @@ Bot automatizado para conectarse a servidores Kaillera y grabar partidas de Nint
 
 ## Características
 
-- **Detección automática de partidas**: Escanea servidores Kaillera y detecta partidas activas
-- **Grabación completa**: Captura inputs, video y datos de red
-- **Control de emulador**: Automatiza RMG Kaillera Edition
-- **Multi-servidor**: Soporte para múltiples servidores Kaillera
-- **Logging completo**: Sistema de logs detallado para debugging
+- **🤖 Automatización completa**: Una instancia graba múltiples partidas automáticamente
+- **🎯 Detección automática de partidas**: Escanea servidores Kaillera y detecta partidas activas
+- **📹 Grabación completa**: Captura inputs, video y datos de red
+- **🎮 Control de emulador**: Automatiza RMG Kaillera Edition
+- **🌐 Multi-servidor**: Soporte para múltiples servidores Kaillera
+- **📊 Monitoreo inteligente**: Detecta automáticamente cuándo termina una partida
+- **📝 Logging completo**: Sistema de logs detallado para debugging
+- **🔄 Modo 24/7**: Funciona continuamente sin intervención manual
 
 ## Requisitos
 
@@ -73,6 +76,43 @@ Edita `config/settings.yaml` para personalizar:
 - Filtros de partidas (juego específico, número de jugadores, etc.)
 
 Ver `config/settings.yaml.example` para un ejemplo completo.
+
+## 🤖 Automatización
+
+### Modo Automático Completo
+
+El bot puede **grabar múltiples partidas automáticamente con una sola instancia**:
+
+```yaml
+automation:
+  auto_join: true              # Unirse automáticamente
+  auto_record: true            # Grabar automáticamente
+  auto_disconnect: true        # Desconectarse al terminar
+  max_recording_duration: 3600 # 1 hora máximo
+  inactivity_timeout: 300      # 5 min sin datos = fin
+  no_players_timeout: 30       # 30 seg sin jugadores = fin
+```
+
+**Cómo funciona:**
+1. Escanea servidores continuamente
+2. Se une a partidas automáticamente
+3. Graba mientras la partida está activa
+4. **Detecta automáticamente cuándo termina** (por: sin jugadores, timeout, inactividad)
+5. Se desconecta y busca la siguiente partida
+6. Repite infinitamente
+
+Ver [AUTOMATION.md](AUTOMATION.md) para documentación completa.
+
+### Modo Manual
+
+Para controlar qué partidas grabar:
+
+```yaml
+automation:
+  auto_join: false
+```
+
+El bot escaneará pero no se unirá automáticamente.
 
 ## Estructura del Proyecto
 
@@ -172,7 +212,9 @@ pip install --force-reinstall -e .
 ## Documentación Adicional
 
 - [QUICKSTART.md](QUICKSTART.md) - Guía de inicio rápido
+- [AUTOMATION.md](AUTOMATION.md) - Automatización y detección de fin de partida
 - [DEBUGGING.md](DEBUGGING.md) - Guía de debugging detallada
+- [SETUP.md](SETUP.md) - Setup en 3 pasos
 
 ## Contribuir
 

@@ -34,6 +34,12 @@ class KailleraBot:
         self.network_recorder: Optional[NetworkRecorder] = None
 
         self.current_session: Optional[str] = None
+        
+        self.recording_start_time: float = 0.0
+        self.last_game_data_time: float = 0.0
+        self.active_players_count: int = 0
+        self.monitoring_thread: Optional[threading.Thread] = None
+        self.session_lock = threading.Lock()
 
     def _load_config(self, config_path: Path) -> dict:
         """Carga la configuración desde archivo YAML."""
@@ -122,6 +128,7 @@ class KailleraBot:
         self.client.on_game_start = self._on_game_start
         self.client.on_player_join = self._on_player_join
         self.client.on_player_leave = self._on_player_leave
+        self.client.on_game_data = self._on_game_data_received
 
         output_dir = Path(self.config['recording']['output_directory'])
         self.video_recorder = VideoRecorder(
@@ -222,6 +229,9 @@ class KailleraBot:
     def _on_player_join(self, player_name: str, player_number: int) -> None:
         """Callback cuando un jugador se une."""
         self.logger.info(f"Jugador unido: {player_name} (#{player_number})")
+        
+        with self.session_lock:
+            self.active_players_count += 1
 
         if self.network_recorder and self.network_recorder.recording:
             self.network_recorder.record_player_event(
@@ -233,6 +243,9 @@ class KailleraBot:
     def _on_player_leave(self, player_name: str, player_number: int) -> None:
         """Callback cuando un jugador se va."""
         self.logger.info(f"Jugador salió: {player_name} (#{player_number})")
+        
+        with self.session_lock:
+            self.active_players_count = max(0, self.active_players_count - 1)
 
         if self.network_recorder and self.network_recorder.recording:
             self.network_recorder.record_player_event(
@@ -240,6 +253,11 @@ class KailleraBot:
                 player_name=player_name,
                 player_number=player_number
             )
+    
+    def _on_game_data_received(self, data: bytes) -> None:
+        """Callback cuando se reciben datos del juego."""
+        with self.session_lock:
+            self.last_game_data_time = time.time()
 
     def _start_recording(self, game_name: str) -> None:
         """Inicia la grabación."""
@@ -262,12 +280,18 @@ class KailleraBot:
                 event_type='start',
                 game_name=game_name
             )
-
+        
+        with self.session_lock:
+            self.active_players_count = 1
+        
+        self._start_game_monitoring()
         self.logger.info("Grabación iniciada")
 
     def _stop_recording(self) -> None:
         """Detiene la grabación."""
         self.logger.info("Deteniendo grabación...")
+        
+        self._stop_game_monitoring()
 
         if self.video_recorder and self.video_recorder.recording:
             self.video_recorder.stop_recording()
@@ -278,8 +302,89 @@ class KailleraBot:
         if self.network_recorder and self.network_recorder.recording:
             self.network_recorder.stop_recording(self.current_session or "")
 
-        self.current_session = None
+        self._cleanup_session()
         self.logger.info("Grabación detenida")
+
+    def _start_game_monitoring(self) -> None:
+        """Inicia el thread de monitoreo de la partida."""
+        self.recording_start_time = time.time()
+        self.last_game_data_time = time.time()
+        
+        self.monitoring_thread = threading.Thread(target=self._monitor_game_loop, daemon=True)
+        self.monitoring_thread.start()
+        self.logger.info("Monitoreo de partida iniciado")
+
+    def _stop_game_monitoring(self) -> None:
+        """Detiene el thread de monitoreo."""
+        if self.monitoring_thread and self.monitoring_thread.is_alive():
+            self.monitoring_thread.join(timeout=2)
+        self.monitoring_thread = None
+
+    def _monitor_game_loop(self) -> None:
+        """Loop de monitoreo que verifica condiciones de fin de partida."""
+        check_interval = 5
+        
+        while self.running and self.current_session:
+            try:
+                if self._check_game_end_conditions():
+                    self.logger.info("Condición de fin de partida detectada")
+                    self._end_session()
+                    break
+                    
+                time.sleep(check_interval)
+                
+            except Exception as e:
+                self.logger.error(f"Error en monitoreo de partida: {e}")
+                break
+
+    def _check_game_end_conditions(self) -> bool:
+        """Verifica si se cumplen las condiciones para terminar la partida."""
+        automation_config = self.config['automation']
+        
+        with self.session_lock:
+            if not self.current_session:
+                return False
+            
+            current_time = time.time()
+            
+            if self.active_players_count == 0:
+                self.logger.info("No hay jugadores activos, terminando partida")
+                return True
+            
+            max_duration = automation_config.get('max_recording_duration', 3600)
+            if current_time - self.recording_start_time > max_duration:
+                self.logger.info(f"Tiempo máximo alcanzado ({max_duration}s), terminando partida")
+                return True
+            
+            inactivity_timeout = automation_config.get('inactivity_timeout', 300)
+            if current_time - self.last_game_data_time > inactivity_timeout:
+                self.logger.info(f"Inactividad detectada ({inactivity_timeout}s), terminando partida")
+                return True
+        
+        return False
+
+    def _end_session(self) -> None:
+        """Termina la sesión actual y se prepara para la siguiente."""
+        self.logger.info("Finalizando sesión actual...")
+        
+        self._stop_recording()
+        
+        if self.client and self.client.is_connected():
+            self.client.leave_game()
+            self.client.disconnect()
+        
+        if self.emulator and self.emulator.is_running():
+            self.emulator.stop_emulator()
+        
+        self.logger.info("Sesión finalizada, listo para la siguiente partida")
+
+    def _cleanup_session(self) -> None:
+        """Limpia las variables de sesión."""
+        with self.session_lock:
+            self.current_session = None
+            self.recording_start_time = 0.0
+            self.last_game_data_time = 0.0
+            self.active_players_count = 0
 
 
 def main() -> None:

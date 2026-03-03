@@ -45,7 +45,9 @@ automation:
   auto_record: true
   auto_disconnect: true
   
-  max_recording_duration: 3600
+  max_recording_duration: 3600  # 1 hora máximo
+  inactivity_timeout: 300       # 5 minutos sin datos = fin de partida
+  no_players_timeout: 30        # 30 segundos sin jugadores = fin de partida
   
 logging:
   level: "INFO"

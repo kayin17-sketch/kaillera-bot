@@ -68,7 +68,7 @@ class ServerScanner:
     ]
 
     KAILLERA_PORT = 27888
-    SCAN_TIMEOUT = 5
+    SCAN_TIMEOUT = 10
 
     def __init__(self, configured_servers: Optional[List[Dict]] = None):
         self.logger = logging.getLogger(__name__)
@@ -301,6 +301,15 @@ class ServerScanner:
             sock.close()
             return int((time.time() - start) * 1000)
 
+        except socket.timeout:
+            self.logger.debug(f"Timeout conectando a {server.address}:{server.port}")
+            return -1
+        except socket.gaierror as e:
+            self.logger.debug(f"Error DNS para {server.address}: {e}")
+            return -1
+        except ConnectionRefusedError:
+            self.logger.debug(f"Conexión rechazada por {server.address}:{server.port}")
+            return -1
         except Exception as e:
-            self.logger.debug(f"Error haciendo ping a {server.address}: {e}")
+            self.logger.debug(f"Error haciendo ping a {server.address}:{server.port}: {type(e).__name__}: {e}")
             return -1

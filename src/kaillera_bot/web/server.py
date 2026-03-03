@@ -652,7 +652,7 @@ class WebInterface:
                 abort(403)
             
             try:
-                with open(log_path, 'r', encoding='utf-8') as f:
+                with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
                     all_lines = f.readlines()
                     last_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
                     sanitized_lines = [self._sanitize_string(line.strip()) for line in last_lines]

@@ -147,6 +147,15 @@ def test_kaillera_server(address, port=27888):
                         sock.sendto(ack_msg, (address, port))
                         last_ack_time = time_module.time()
                         
+                        print("\n4. Solicitando lista de juegos...")
+                        get_games_msg = b"\x01"
+                        get_games_msg += (1).to_bytes(2, 'little')
+                        get_games_msg += (6).to_bytes(2, 'little')
+                        get_games_msg += b"\x08"
+                        get_games_msg += b"\x00"
+                        print(f"   GetGames: {get_games_msg.hex()}")
+                        sock.sendto(get_games_msg, (address, port))
+                        
                         print("   Esperando mensajes (30 segundos)...")
                         sock.settimeout(3)
                         

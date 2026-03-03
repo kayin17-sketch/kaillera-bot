@@ -375,17 +375,22 @@ class KailleraBotUI {
         
         if (sectionData.subsections) {
             for (const [subKey, subData] of Object.entries(sectionData.subsections)) {
+                const subConfig = sectionConfig[subKey];
+                console.log('Subsection:', subKey, 'type:', subData.type, 'data:', subConfig);
+                
                 html += `<div class="config-subsection mt-4">
                     <h6 class="border-bottom pb-2 mb-3">${subData.label}</h6>`;
                 
-                const subConfig = sectionConfig[subKey];
-                console.log('Subsection:', subKey, 'data:', subConfig);
-                
                 if (subData.type === 'list') {
+                    console.log('Calling renderListField for', subKey);
                     html += this.renderListField(`${sectionKey}.${subKey}`, subData, subConfig || []);
                 } else if (subData.type === 'object') {
                     html += this.renderFields(`${sectionKey}.${subKey}`, subData.fields, subConfig || {});
                 }
+                
+                html += '</div>';
+            }
+        }
                 
                 html += '</div>';
             }
@@ -449,12 +454,19 @@ class KailleraBotUI {
     }
 
     renderListField(path, listSchema, items) {
+        console.log('renderListField called:', { path, items, isArray: Array.isArray(items), length: items?.length });
         let html = '';
+        
+        if (!Array.isArray(items)) {
+            console.error('items is not an array:', items);
+            items = [];
+        }
         
         if (listSchema.item_fields) {
             html += `<div class="list-items" data-list-path="${path}">`;
             
             items.forEach((item, index) => {
+                console.log('Rendering item:', index, item);
                 html += `<div class="card mb-2 list-item" data-index="${index}">
                     <div class="card-body py-2">
                         <div class="row align-items-center">`;
@@ -523,6 +535,7 @@ class KailleraBotUI {
             </button>`;
         }
         
+        console.log('renderListField HTML length:', html.length);
         return html;
     }
 

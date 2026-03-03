@@ -160,82 +160,6 @@ class ServerScanner:
 
         return servers
 
-    def scan_server_games(self, server: ServerInfo) -> List[GameSession]:
-        """Escanea las partidas en un servidor específico."""
-        sessions = []
-
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(self.SCAN_TIMEOUT)
-            sock.connect((server.address, server.port))
-
-            request = b"LIST_GAMES\n"
-            sock.send(request)
-
-            data = sock.recv(8192)
-            sock.close()
-
-            sessions = self._parse_game_list(data, server)
-
-            for session in sessions:
-                self.sessions.append(session)
-                if self.on_game_found:
-                    self.on_game_found(session)
-
-        except Exception as e:
-            self.logger.debug(f"Error escaneando juegos en {server.address}: {e}")
-
-        return sessions
-
-    def _parse_game_list(self, data: bytes, server: ServerInfo) -> List[GameSession]:
-        """Parsea la lista de partidas de un servidor."""
-        sessions = []
-
-        try:
-            message = data.decode('utf-8', errors='ignore')
-            lines = message.strip().split('\n')
-
-            i = 0
-            while i < len(lines):
-                line = lines[i]
-
-                if line.startswith("GAME:"):
-                    game_name = line[5:].strip()
-                    players = []
-                    max_players = 4
-                    status = "Waiting"
-
-                    i += 1
-                    while i < len(lines) and not lines[i].startswith("GAME:"):
-                        if lines[i].startswith("PLAYERS:"):
-                            players_str = lines[i][8:].strip()
-                            players = [p.strip() for p in players_str.split(',') if p.strip()]
-
-                        elif lines[i].startswith("MAX:"):
-                            max_players = int(lines[i][4:].strip())
-
-                        elif lines[i].startswith("STATUS:"):
-                            status = lines[i][7:].strip()
-
-                        i += 1
-
-                    session = GameSession(
-                        game_name=game_name,
-                        server=server,
-                        players=players,
-                        max_players=max_players,
-                        status=status
-                    )
-                    sessions.append(session)
-
-                else:
-                    i += 1
-
-        except Exception as e:
-            self.logger.error(f"Error parseando lista de juegos: {e}")
-
-        return sessions
-
     def start_continuous_scan(
         self,
         interval: int = 60,
@@ -286,38 +210,158 @@ class ServerScanner:
         return self.sessions
 
     def ping_server(self, server: ServerInfo) -> int:
-        """Calcula el ping a un servidor usando TCP o UDP."""
+        """Calcula el ping a un servidor usando protocolo Kaillera (UDP)."""
         try:
             start = time.time()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(self.SCAN_TIMEOUT)
             
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(self.SCAN_TIMEOUT)
-                sock.connect((server.address, server.port))
-                sock.close()
+            hello_msg = b"HELLO0.83\x00"
+            sock.sendto(hello_msg, (server.address, server.port))
+            
+            data, _ = sock.recvfrom(1024)
+            sock.close()
+            
+            if data.startswith(b"HELLOD00D"):
                 return int((time.time() - start) * 1000)
-            except:
-                pass
-            
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.settimeout(self.SCAN_TIMEOUT)
-                sock.sendto(b'\x00', (server.address, server.port))
-                sock.recv(1024)
-                sock.close()
-                return int((time.time() - start) * 1000)
-            except:
-                pass
-            
-            try:
-                result = socket.getaddrinfo(server.address, None)
-                if result:
-                    return 1
-            except:
-                pass
             
             return -1
 
-        except Exception as e:
-            self.logger.debug(f"Error haciendo ping a {server.address}:{server.port}: {type(e).__name__}: {e}")
+        except socket.timeout:
+            self.logger.debug(f"Timeout UDP para {server.address}:{server.port}")
             return -1
+        except Exception as e:
+            self.logger.debug(f"Error ping UDP a {server.address}:{server.port}: {e}")
+            return -1
+    
+    def scan_server_games(self, server: ServerInfo) -> List[GameSession]:
+        """Escanea las partidas en un servidor específico usando UDP."""
+        sessions = []
+
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.settimeout(self.SCAN_TIMEOUT)
+            
+            hello_msg = b"HELLO0.83\x00"
+            sock.sendto(hello_msg, (server.address, server.port))
+            
+            data, _ = sock.recvfrom(8192)
+            
+            if not data.startswith(b"HELLOD00D"):
+                self.logger.debug(f"Respuesta invalida de {server.address}")
+                sock.close()
+                return sessions
+            
+            login_msg = self._build_login_message("KailleraBot")
+            sock.sendto(login_msg, (server.address, server.port))
+            
+            data, _ = sock.recvfrom(8192)
+            sock.close()
+            
+            sessions = self._parse_game_list_v086(data, server)
+            
+            for session in sessions:
+                self.sessions.append(session)
+                if self.on_game_found:
+                    self.on_game_found(session)
+
+        except socket.timeout:
+            self.logger.debug(f"Timeout escaneando juegos en {server.address}")
+        except Exception as e:
+            self.logger.debug(f"Error escaneando juegos en {server.address}: {e}")
+
+        return sessions
+    
+    def _build_login_message(self, username: str) -> bytes:
+        """Construye mensaje de login v086."""
+        msg_count = b'\x01'
+        
+        msg_number = (0).to_bytes(2, 'little')
+        msg_length = (5 + len(username) + 1 + 15 + 1).to_bytes(2, 'little')
+        msg_type = b'\x03'
+        
+        body = username.encode('latin-1') + b'\x00'
+        body += b"KailleraBot 1.0\x00"
+        body += b'\x02'
+        
+        return msg_count + msg_number + msg_length + msg_type + body
+    
+    def _parse_game_list_v086(self, data: bytes, server: ServerInfo) -> List[GameSession]:
+        """Parsea la lista de partidas del protocolo v086."""
+        sessions = []
+        
+        try:
+            if len(data) < 10:
+                return sessions
+            
+            if data[0] == 0x01:
+                pos = 1
+                msg_number = int.from_bytes(data[pos:pos+2], 'little')
+                pos += 2
+                msg_length = int.from_bytes(data[pos:pos+2], 'little')
+                pos += 2
+                msg_type = data[pos]
+                pos += 1
+                
+                if msg_type == 0x04:
+                    pos += 1
+                    num_users = int.from_bytes(data[pos:pos+4], 'little')
+                    pos += 4
+                    num_games = int.from_bytes(data[pos:pos+4], 'little')
+                    pos += 4
+                    
+                    for _ in range(num_users):
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        pos += 1
+                        pos += 7
+                    
+                    for _ in range(num_games):
+                        game_name_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        game_name = data[game_name_start:pos].decode('latin-1', errors='ignore')
+                        pos += 1
+                        
+                        game_id = int.from_bytes(data[pos:pos+4], 'little')
+                        pos += 4
+                        
+                        client_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        client_type = data[client_start:pos].decode('latin-1', errors='ignore')
+                        pos += 1
+                        
+                        username_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        username = data[username_start:pos].decode('latin-1', errors='ignore')
+                        pos += 1
+                        
+                        players_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        players_str = data[players_start:pos].decode('latin-1', errors='ignore')
+                        pos += 1
+                        
+                        status = data[pos] if pos < len(data) else 0
+                        pos += 1
+                        
+                        try:
+                            current, max_p = map(int, players_str.split('/'))
+                        except:
+                            current, max_p = 1, 4
+                        
+                        session = GameSession(
+                            game_name=game_name,
+                            server=server,
+                            players=[username],
+                            max_players=max_p,
+                            status="Waiting" if status == 0 else "Playing"
+                        )
+                        sessions.append(session)
+            
+        except Exception as e:
+            self.logger.error(f"Error parseando juegos v086: {e}")
+        
+        return sessions

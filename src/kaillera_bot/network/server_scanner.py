@@ -270,8 +270,11 @@ class ServerScanner:
                 msg_num = int.from_bytes(data[1:3], 'little')
                 self.logger.info(f"[SCAN] ServerAck recibido, msg_num={msg_num}")
                 
-                ack_msg = self._build_client_ack(msg_num)
-                sock.sendto(ack_msg, (server.address, server.port))
+                for i in range(4):
+                    ack_msg = self._build_client_ack(msg_num + i)
+                    sock.sendto(ack_msg, (server.address, server.port))
+                    self.logger.info(f"[SCAN] ACK {i+1} enviado")
+                    time.sleep(0.5)
                 
                 for i in range(15):
                     try:

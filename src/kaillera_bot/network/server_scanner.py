@@ -281,9 +281,12 @@ class ServerScanner:
                     except socket.timeout:
                         pass
                     
-                    time.sleep(0.3)
+                    time.sleep(0.5)
                 
-                for i in range(15):
+                self.logger.info(f"[SCAN] Esperando ServerStatus...")
+                sock.settimeout(2)
+                
+                for i in range(20):
                     try:
                         data, _ = sock.recvfrom(8192)
                         self.logger.info(f"[SCAN] Mensaje {i+1}: {data.hex()}")
@@ -322,6 +325,11 @@ class ServerScanner:
                                     self.logger.info(f"[SCAN] Usuario conectado")
                                 
                                 pos += bundle_msg_len - 5
+                            
+                            if not found_server_status:
+                                ack_msg = self._build_client_ack(bundle_msg_num)
+                                sock.sendto(ack_msg, (server.address, server.port))
+                                self.logger.info(f"[SCAN] ACK enviado para mensaje {bundle_msg_num}")
                                 
                     except socket.timeout:
                         continue
@@ -369,69 +377,95 @@ class ServerScanner:
         sessions = []
         
         try:
+            self.logger.info(f"[PARSE] Iniciando parseo de ServerStatus, data length: {len(data)}")
+            
             if len(data) < 10:
+                self.logger.warning(f"[PARSE] Datos muy cortos: {len(data)}")
                 return sessions
             
-            pos = 6
-            pos += 1
-            num_users = int.from_bytes(data[pos:pos+4], 'little')
-            pos += 4
-            num_games = int.from_bytes(data[pos:pos+4], 'little')
-            pos += 4
+            msg_count = data[0]
+            self.logger.info(f"[PARSE] Mensajes en bundle: {msg_count}")
             
-            self.logger.debug(f"ServerStatus: {num_users} usuarios, {num_games} partidas")
-            
-            for _ in range(num_users):
-                while pos < len(data) and data[pos] != 0:
+            pos = 1
+            for m in range(msg_count):
+                if pos + 5 > len(data):
+                    break
+                    
+                msg_num = int.from_bytes(data[pos:pos+2], 'little')
+                pos += 2
+                msg_len = int.from_bytes(data[pos:pos+2], 'little')
+                pos += 2
+                msg_type = data[pos]
+                pos += 1
+                
+                self.logger.info(f"[PARSE] Mensaje {m+1}: type={msg_type:#x}, len={msg_len}")
+                
+                if msg_type == 0x04:
+                    self.logger.info(f"[PARSE] Encontrado ServerStatus!")
+                    
+                    if pos >= len(data):
+                        break
+                    
                     pos += 1
-                pos += 1
-                pos += 7
-            
-            for _ in range(num_games):
-                game_name_start = pos
-                while pos < len(data) and data[pos] != 0:
-                    pos += 1
-                game_name = data[game_name_start:pos].decode('latin-1', errors='ignore')
-                pos += 1
-                
-                game_id = int.from_bytes(data[pos:pos+4], 'little')
-                pos += 4
-                
-                client_start = pos
-                while pos < len(data) and data[pos] != 0:
-                    pos += 1
-                pos += 1
-                
-                username_start = pos
-                while pos < len(data) and data[pos] != 0:
-                    pos += 1
-                pos += 1
-                
-                players_start = pos
-                while pos < len(data) and data[pos] != 0:
-                    pos += 1
-                players_str = data[players_start:pos].decode('latin-1', errors='ignore')
-                pos += 1
-                
-                status = data[pos] if pos < len(data) else 0
-                pos += 1
-                
-                try:
-                    current, max_p = map(int, players_str.split('/'))
-                except:
-                    current, max_p = 1, 4
-                
-                session = GameSession(
-                    game_name=game_name,
-                    server=server,
-                    players=[],
-                    max_players=max_p,
-                    status="Waiting" if status == 0 else "Playing"
-                )
-                sessions.append(session)
-                self.logger.debug(f"Partida encontrada: {game_name} ({players_str})")
+                    
+                    num_users = int.from_bytes(data[pos:pos+4], 'little')
+                    pos += 4
+                    num_games = int.from_bytes(data[pos:pos+4], 'little')
+                    pos += 4
+                    
+                    self.logger.info(f"[PARSE] Usuarios: {num_users}, Juegos: {num_games}")
+                    
+                    for _ in range(num_users):
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        pos += 1
+                        pos += 7
+                    
+                    for _ in range(num_games):
+                        game_name_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        game_name = data[game_name_start:pos].decode('latin-1', errors='ignore')
+                        pos += 1
+                        
+                        game_id = int.from_bytes(data[pos:pos+4], 'little')
+                        pos += 4
+                        
+                        client_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        pos += 1
+                        
+                        username_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        pos += 1
+                        
+                        players_start = pos
+                        while pos < len(data) and data[pos] != 0:
+                            pos += 1
+                        players_str = data[players_start:pos].decode('latin-1', errors='ignore')
+                        pos += 1
+                        
+                        status = data[pos] if pos < len(data) else 0
+                        pos += 1
+                        
+                        try:
+                            current, max_p = map(int, players_str.split('/'))
+                        except:
+                            current, max_p = 1, 4
+                        
+                        session = GameSession(
+                            game_name=game_name,
+                            server=server,
+                            players=[],
+                            max_players=max_p,
+                            status="Waiting" if status == 0 else "Playing"
+                        )
+                        sessions.append(session)
+                        self.logger.info(f"[PARSE] Partida: {game_name} ({players_str})")
             
         except Exception as e:
-            self.logger.error(f"Error parseando ServerStatus: {e}")
+            self.logger.error(f"[PARSE] Error: {type(e).__name__}: {e}")
         
         return sessions

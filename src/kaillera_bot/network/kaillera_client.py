@@ -162,7 +162,7 @@ class KailleraClient:
         msg_num = self._next_message_number()
         
         username_bytes = self.username.encode('latin-1') + b'\x00'
-        client_type = b"KailleraBot 1.0\x00"
+        client_type = b"Mupen64Plus 2.0\x00"
         connection_type = b'\x02'
         
         body = username_bytes + client_type + connection_type

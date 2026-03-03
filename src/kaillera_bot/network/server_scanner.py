@@ -264,21 +264,43 @@ class ServerScanner:
             if len(data) > 5 and data[5] == 0x05:
                 msg_num = int.from_bytes(data[1:3], 'little')
                 
-                for _ in range(10):
-                    ack_msg = self._build_client_ack(msg_num)
-                    sock.sendto(ack_msg, (server.address, server.port))
-                    
+                ack_msg = self._build_client_ack(msg_num)
+                sock.sendto(ack_msg, (server.address, server.port))
+                
+                for _ in range(15):
                     try:
                         data, _ = sock.recvfrom(8192)
-                        if len(data) > 5:
-                            msg_type = data[5]
+                        
+                        if len(data) > 0:
+                            msg_count = data[0]
+                            pos = 1
                             
-                            if msg_type == 0x04:
-                                sessions = self._parse_game_list_v086(data, server)
-                                break
-                            elif msg_type == 0x05:
-                                msg_num = int.from_bytes(data[1:3], 'little')
-                                continue
+                            for _ in range(msg_count):
+                                if pos + 5 > len(data):
+                                    break
+                                
+                                msg_num = int.from_bytes(data[pos:pos+2], 'little')
+                                pos += 2
+                                msg_len = int.from_bytes(data[pos:pos+2], 'little')
+                                pos += 2
+                                msg_type = data[pos]
+                                pos += 1
+                                
+                                if msg_type == 0x04:
+                                    sessions = self._parse_game_list_v086(data, server)
+                                    sock.close()
+                                    for session in sessions:
+                                        self.sessions.append(session)
+                                        if self.on_game_found:
+                                            self.on_game_found(session)
+                                    return sessions
+                                elif msg_type == 0x05:
+                                    msg_num = int.from_bytes(data[pos-5:pos-3], 'little')
+                                    ack_msg = self._build_client_ack(msg_num)
+                                    sock.sendto(ack_msg, (server.address, server.port))
+                                
+                                pos += msg_len - 5
+                                
                     except socket.timeout:
                         continue
             
@@ -286,12 +308,6 @@ class ServerScanner:
             
         except Exception as e:
             self.logger.debug(f"Error escaneando {server.address}: {e}")
-
-        if sessions:
-            for session in sessions:
-                self.sessions.append(session)
-                if self.on_game_found:
-                    self.on_game_found(session)
 
         return sessions
     

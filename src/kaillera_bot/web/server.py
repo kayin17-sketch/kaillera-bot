@@ -40,6 +40,7 @@ class WebInterface:
         self.security = SecurityConfig()
         
         self._rate_limit_data: Dict[str, list] = {}
+        self._rate_limit_lock = threading.Lock()
         
         self.app = Flask(
             __name__,
@@ -84,6 +85,8 @@ class WebInterface:
         with open(secret_file, 'w') as f:
             f.write(secret_key)
         
+        os.chmod(secret_file, 0o600)
+        
         return secret_key
 
     def _get_allowed_origins(self) -> list:
@@ -112,21 +115,22 @@ class WebInterface:
         return response
 
     def _check_rate_limit(self, client_id: str) -> bool:
-        """Verifica rate limiting."""
+        """Verifica rate limiting de forma thread-safe."""
         current_time = time.time()
         
-        if client_id not in self._rate_limit_data:
-            self._rate_limit_data[client_id] = []
-        
-        requests = self._rate_limit_data[client_id]
-        requests = [t for t in requests if current_time - t < self.security.RATE_LIMIT_WINDOW]
-        
-        if len(requests) >= self.security.RATE_LIMIT_REQUESTS:
-            return False
-        
-        requests.append(current_time)
-        self._rate_limit_data[client_id] = requests
-        return True
+        with self._rate_limit_lock:
+            if client_id not in self._rate_limit_data:
+                self._rate_limit_data[client_id] = []
+            
+            requests = self._rate_limit_data[client_id]
+            requests = [t for t in requests if current_time - t < self.security.RATE_LIMIT_WINDOW]
+            
+            if len(requests) >= self.security.RATE_LIMIT_REQUESTS:
+                return False
+            
+            requests.append(current_time)
+            self._rate_limit_data[client_id] = requests
+            return True
 
     def _validate_category(self, category: str) -> bool:
         """Valida que la categoría sea permitida."""

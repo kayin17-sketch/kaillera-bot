@@ -136,12 +136,12 @@ def test_kaillera_server(address, port=27888):
                         ack_msg += msg_num.to_bytes(2, 'little')
                         ack_msg += (17).to_bytes(2, 'little')
                         ack_msg += b"\x06"
-                        ack_msg += b"\x00"
                         ack_msg += (0).to_bytes(4, 'little')
                         ack_msg += (1).to_bytes(4, 'little')
                         ack_msg += (2).to_bytes(4, 'little')
                         ack_msg += (3).to_bytes(4, 'little')
                         
+                        print(f"   ACK body length: {len(ack_msg) - 5}")
                         print(f"   Enviando ACK: {ack_msg.hex()}")
                         sock.sendto(ack_msg, (address, port))
                         

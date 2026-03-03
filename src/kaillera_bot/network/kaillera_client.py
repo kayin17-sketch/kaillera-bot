@@ -182,7 +182,6 @@ class KailleraClient:
         bundle += msg_num.to_bytes(2, 'little')
         bundle += (17).to_bytes(2, 'little')
         bundle += b'\x06'
-        bundle += b'\x00'
         bundle += (0).to_bytes(4, 'little')
         bundle += (1).to_bytes(4, 'little')
         bundle += (2).to_bytes(4, 'little')

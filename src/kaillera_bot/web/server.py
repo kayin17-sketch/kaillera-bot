@@ -92,7 +92,10 @@ class WebInterface:
 
     def _get_allowed_origins(self) -> list:
         """Obiene orígenes permitidos para CORS."""
-        origins = ['http://localhost:5000']
+        origins = [
+            'http://localhost:5000',
+            'http://127.0.0.1:5000',
+        ]
         
         if self.host == '0.0.0.0':
             import socket
@@ -101,8 +104,13 @@ class WebInterface:
                 local_ip = socket.gethostbyname(hostname)
                 origins.append(f'http://{local_ip}:5000')
                 origins.append(f'http://{hostname}:5000')
+                origins.append(f'http://{local_ip}:{self.port}')
+                origins.append(f'http://{hostname}:{self.port}')
             except Exception:
                 pass
+        
+        origins.append(f'http://localhost:{self.port}')
+        origins.append(f'http://127.0.0.1:{self.port}')
         
         return origins
 

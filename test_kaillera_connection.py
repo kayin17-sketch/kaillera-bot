@@ -101,7 +101,7 @@ def test_kaillera_server(address, port=27888):
             print(f"   HELLOD00D recibido! Puerto: {port_str}")
             
             print("\n2. Enviando login v086...")
-            username = b"TestBot\x00"
+            username = b"Kayin\x00"
             client_type = b"Mupen64Plus 2.0\x00"
             connection_type = b"\x02"
             
@@ -142,19 +142,28 @@ def test_kaillera_server(address, port=27888):
                         ack_msg += (2).to_bytes(4, 'little')
                         ack_msg += (3).to_bytes(4, 'little')
                         
-                        print(f"   ACK body length: {len(ack_msg) - 5}")
                         print(f"   Enviando ACK (msg_num={msg_num}): {ack_msg.hex()}")
                         sock.sendto(ack_msg, (address, port))
-                        last_ack_time = time_module.time()
+                        
+                        print("   Esperando respuesta del servidor...")
+                        data, addr = sock.recvfrom(8192)
+                        print(f"   Recibido: {len(data)} bytes - {data.hex()}")
+                        
                         
                         print("\n4. Solicitando lista de juegos...")
                         get_games_msg = b"\x01"
-                        get_games_msg += (1).to_bytes(2, 'little')
+                        get_games_msg += (2).to_bytes(2, 'little')
                         get_games_msg += (6).to_bytes(2, 'little')
                         get_games_msg += b"\x08"
                         get_games_msg += b"\x00"
                         print(f"   GetGames: {get_games_msg.hex()}")
                         sock.sendto(get_games_msg, (address, port))
+                        
+                        print("   Esperando mensajes (30 segundos)...")
+                        sock.settimeout(3)
+                        
+                        msg_count = 0
+                        last_ack_time = time_module.time()
                         
                         print("   Esperando mensajes (30 segundos)...")
                         sock.settimeout(3)

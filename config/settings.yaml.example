@@ -1,0 +1,54 @@
+emulator:
+  executable_path: "/usr/bin/rmg"
+  process_name: "rmg"
+  window_title: "Rosalie's Mupen GUI"
+  
+  roms_directory: "/home/user/roms/n64"
+  
+  startup_delay: 5
+  
+kaillera:
+  servers:
+    - name: "Kaillera Master Server"
+      address: "master.kaillera.com"
+      port: 27888
+  
+  scan_interval: 30
+  
+  filters:
+    games: []
+    min_players: 2
+    max_players: 4
+    
+recording:
+  output_directory: "output/"
+  
+  video:
+    enabled: true
+    format: "mp4"
+    fps: 60
+    codec: "mp4v"
+    quality: "high"
+    
+  inputs:
+    enabled: true
+    format: "json"
+    
+  network:
+    enabled: true
+    format: "json"
+    
+  filename_pattern: "{game}_{date}_{time}_{players}"
+  
+automation:
+  auto_join: true
+  auto_record: true
+  auto_disconnect: true
+  
+  max_recording_duration: 3600
+  
+logging:
+  level: "INFO"
+  file: "logs/kaillera_bot.log"
+  max_size: 10485760
+  backup_count: 5

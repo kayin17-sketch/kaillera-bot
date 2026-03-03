@@ -1,0 +1,50 @@
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Grabaciones (opcional, descomenta si no quieres subir grabaciones)
+# output/videos/*.mp4
+# output/inputs/*.json
+# output/network/*.json
+
+# Configuración personal
+config/settings.yaml
+
+# OS
+.DS_Store
+Thumbs.db

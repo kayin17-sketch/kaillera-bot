@@ -1,0 +1,6 @@
+# Directorio de salida para las grabaciones
+# Este directorio se creará automáticamente si no existe
+
+*.mp4
+*.json
+*.pcap

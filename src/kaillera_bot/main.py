@@ -131,7 +131,7 @@ class KailleraBot:
         self.scanner = ServerScanner(configured_servers=configured_servers)
         self.scanner.on_game_found = self._on_game_found
 
-        self.client = KailleraClient(username="KailleraBot")
+        self.client = KailleraClient(username="Bot")
         self.client.on_game_start = self._on_game_start
         self.client.on_player_join = self._on_player_join
         self.client.on_player_leave = self._on_player_leave

@@ -259,7 +259,7 @@ class ServerScanner:
                 sock.close()
                 return sessions
             
-            login_msg = self._build_login_message("KailleraBot")
+            login_msg = self._build_login_message("Bot")
             self.logger.info(f"[SCAN] Enviando login: {login_msg.hex()}")
             sock.sendto(login_msg, (server.address, server.port))
             
@@ -350,6 +350,7 @@ class ServerScanner:
         bundle += b'\x03'
         bundle += body
         
+        self.logger.debug(f"Login bundle: {bundle.hex()}")
         return bundle
     
     def _parse_game_list_v086(self, data: bytes, server: ServerInfo) -> List[GameSession]:

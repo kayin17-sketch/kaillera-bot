@@ -251,23 +251,36 @@ class ServerScanner:
             sock.sendto(hello_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
-            self.logger.debug(f"Respuesta recibida: {len(data)} bytes - {data[:20]}")
+            self.logger.debug(f"HELLO response: {len(data)} bytes")
             
             if not data.startswith(b"HELLOD00D"):
-                self.logger.warning(f"Respuesta invalida de {server.address}: {data[:20]}")
+                self.logger.warning(f"Respuesta HELLO invalida de {server.address}")
                 sock.close()
                 return sessions
             
-            self.logger.debug(f"HELLOD00D recibido, enviando login...")
             login_msg = self._build_login_message("KailleraBot")
             sock.sendto(login_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
-            self.logger.debug(f"Respuesta login: {len(data)} bytes")
-            sock.close()
+            self.logger.debug(f"Login response: {len(data)} bytes, type: {data[5] if len(data) > 5 else 'N/A':#x}")
             
-            sessions = self._parse_game_list_v086(data, server)
-            self.logger.info(f"Parseadas {len(sessions)} partidas de {server.name}")
+            if len(data) > 5 and data[5] == 0x05:
+                msg_num = int.from_bytes(data[1:3], 'little')
+                ack_msg = self._build_client_ack(msg_num)
+                sock.sendto(ack_msg, (server.address, server.port))
+                
+                sock.settimeout(2)
+                for _ in range(5):
+                    try:
+                        data, _ = sock.recvfrom(8192)
+                        if len(data) > 5 and data[5] == 0x04:
+                            self.logger.info(f"ServerStatus recibido de {server.name}")
+                            sessions = self._parse_game_list_v086(data, server)
+                            break
+                    except socket.timeout:
+                        continue
+            
+            sock.close()
             
             for session in sessions:
                 self.sessions.append(session)
@@ -280,6 +293,18 @@ class ServerScanner:
             self.logger.error(f"Error escaneando juegos en {server.address}:{server.port}: {type(e).__name__}: {e}")
 
         return sessions
+    
+    def _build_client_ack(self, msg_num: int) -> bytes:
+        """Construye mensaje ClientAck (0x06)."""
+        ack_msg = b"\x01"
+        ack_msg += msg_num.to_bytes(2, 'little')
+        ack_msg += (17).to_bytes(2, 'little')
+        ack_msg += b"\x06"
+        ack_msg += (0).to_bytes(4, 'little')
+        ack_msg += (1).to_bytes(4, 'little')
+        ack_msg += (2).to_bytes(4, 'little')
+        ack_msg += (3).to_bytes(4, 'little')
+        return ack_msg
     
     def _build_login_message(self, username: str) -> bytes:
         """Construye mensaje de login v086."""
@@ -299,81 +324,73 @@ class ServerScanner:
         return bundle
     
     def _parse_game_list_v086(self, data: bytes, server: ServerInfo) -> List[GameSession]:
-        """Parsea la lista de partidas del protocolo v086."""
+        """Parsea la lista de partidas del mensaje ServerStatus (0x04)."""
         sessions = []
         
         try:
             if len(data) < 10:
                 return sessions
             
-            if data[0] == 0x01:
-                pos = 1
-                msg_number = int.from_bytes(data[pos:pos+2], 'little')
-                pos += 2
-                msg_length = int.from_bytes(data[pos:pos+2], 'little')
-                pos += 2
-                msg_type = data[pos]
+            pos = 6
+            pos += 1
+            num_users = int.from_bytes(data[pos:pos+4], 'little')
+            pos += 4
+            num_games = int.from_bytes(data[pos:pos+4], 'little')
+            pos += 4
+            
+            self.logger.debug(f"ServerStatus: {num_users} usuarios, {num_games} partidas")
+            
+            for _ in range(num_users):
+                while pos < len(data) and data[pos] != 0:
+                    pos += 1
+                pos += 1
+                pos += 7
+            
+            for _ in range(num_games):
+                game_name_start = pos
+                while pos < len(data) and data[pos] != 0:
+                    pos += 1
+                game_name = data[game_name_start:pos].decode('latin-1', errors='ignore')
                 pos += 1
                 
-                if msg_type == 0x04:
+                game_id = int.from_bytes(data[pos:pos+4], 'little')
+                pos += 4
+                
+                client_start = pos
+                while pos < len(data) and data[pos] != 0:
                     pos += 1
-                    num_users = int.from_bytes(data[pos:pos+4], 'little')
-                    pos += 4
-                    num_games = int.from_bytes(data[pos:pos+4], 'little')
-                    pos += 4
-                    
-                    for _ in range(num_users):
-                        while pos < len(data) and data[pos] != 0:
-                            pos += 1
-                        pos += 1
-                        pos += 7
-                    
-                    for _ in range(num_games):
-                        game_name_start = pos
-                        while pos < len(data) and data[pos] != 0:
-                            pos += 1
-                        game_name = data[game_name_start:pos].decode('latin-1', errors='ignore')
-                        pos += 1
-                        
-                        game_id = int.from_bytes(data[pos:pos+4], 'little')
-                        pos += 4
-                        
-                        client_start = pos
-                        while pos < len(data) and data[pos] != 0:
-                            pos += 1
-                        client_type = data[client_start:pos].decode('latin-1', errors='ignore')
-                        pos += 1
-                        
-                        username_start = pos
-                        while pos < len(data) and data[pos] != 0:
-                            pos += 1
-                        username = data[username_start:pos].decode('latin-1', errors='ignore')
-                        pos += 1
-                        
-                        players_start = pos
-                        while pos < len(data) and data[pos] != 0:
-                            pos += 1
-                        players_str = data[players_start:pos].decode('latin-1', errors='ignore')
-                        pos += 1
-                        
-                        status = data[pos] if pos < len(data) else 0
-                        pos += 1
-                        
-                        try:
-                            current, max_p = map(int, players_str.split('/'))
-                        except:
-                            current, max_p = 1, 4
-                        
-                        session = GameSession(
-                            game_name=game_name,
-                            server=server,
-                            players=[username],
-                            max_players=max_p,
-                            status="Waiting" if status == 0 else "Playing"
-                        )
-                        sessions.append(session)
+                pos += 1
+                
+                username_start = pos
+                while pos < len(data) and data[pos] != 0:
+                    pos += 1
+                pos += 1
+                
+                players_start = pos
+                while pos < len(data) and data[pos] != 0:
+                    pos += 1
+                players_str = data[players_start:pos].decode('latin-1', errors='ignore')
+                pos += 1
+                
+                status = data[pos] if pos < len(data) else 0
+                pos += 1
+                
+                try:
+                    current, max_p = map(int, players_str.split('/'))
+                except:
+                    current, max_p = 1, 4
+                
+                session = GameSession(
+                    game_name=game_name,
+                    server=server,
+                    players=[],
+                    max_players=max_p,
+                    status="Waiting" if status == 0 else "Playing"
+                )
+                sessions.append(session)
+                self.logger.debug(f"Partida encontrada: {game_name} ({players_str})")
             
         except Exception as e:
-            self.logger.error(f"Error parseando juegos v086: {e}")
+            self.logger.error(f"Error parseando ServerStatus: {e}")
         
         return sessions

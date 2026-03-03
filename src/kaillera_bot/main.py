@@ -415,5 +415,86 @@ def main() -> None:
     bot.start()
 
 
+def main_web() -> None:
+    """Función principal con interfaz web."""
+    parser = argparse.ArgumentParser(
+        description="Bot para grabar partidas de N64 desde servidores Kaillera (con interfaz web)"
+    )
+    parser.add_argument(
+        '--config',
+        type=Path,
+        default=Path('config/settings.yaml'),
+        help='Ruta al archivo de configuración'
+    )
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='0.0.0.0',
+        help='Host para la interfaz web (default: 0.0.0.0)'
+    )
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=5000,
+        help='Puerto para la interfaz web (default: 5000)'
+    )
+    parser.add_argument(
+        '--no-bot',
+        action='store_true',
+        help='No iniciar el bot automáticamente, solo la interfaz web'
+    )
+    parser.add_argument(
+        '--version',
+        action='version',
+        version='%(prog)s 0.1.0'
+    )
+
+    args = parser.parse_args()
+
+    if not args.config.exists():
+        print(f"Error: Archivo de configuración no encontrado: {args.config}")
+        print("Por favor, crea un archivo de configuración en config/settings.yaml")
+        sys.exit(1)
+
+    bot = KailleraBot(args.config)
+    web_interface = None
+    
+    try:
+        from .web import WebInterface
+        
+        web_interface = WebInterface(bot, host=args.host, port=args.port)
+        web_interface.start_server()
+        
+        print("\n" + "=" * 60)
+        print("🎮 KAILLERA BOT - INTERFAZ WEB")
+        print("=" * 60)
+        print(f"\n🌐 Interfaz web disponible en:")
+        print(f"   http://localhost:{args.port}")
+        print(f"   http://0.0.0.0:{args.port}")
+        print(f"\n📍 Accesible desde cualquier dispositivo en tu red local")
+        print(f"   http://<tu-ip-local>:{args.port}")
+        print("\n" + "=" * 60)
+        print("Presiona Ctrl+C para detener\n")
+        
+        if not args.no_bot:
+            bot_thread = threading.Thread(target=bot.start, daemon=True)
+            bot_thread.start()
+        
+        while True:
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        print("\n\nDeteniendo...")
+        if web_interface:
+            web_interface.stop_server()
+        bot.stop()
+    except ImportError as e:
+        print(f"\nError: Dependencias de interfaz web no instaladas")
+        print(f"Detalles: {e}")
+        print("\nPara usar la interfaz web, instala las dependencias:")
+        print("  pip install -e .")
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     main()

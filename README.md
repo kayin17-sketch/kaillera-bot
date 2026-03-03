@@ -12,6 +12,7 @@ Bot automatizado para conectarse a servidores Kaillera y grabar partidas de Nint
 - **📊 Monitoreo inteligente**: Detecta automáticamente cuándo termina una partida
 - **📝 Logging completo**: Sistema de logs detallado para debugging
 - **🔄 Modo 24/7**: Funciona continuamente sin intervención manual
+- **🖥️ Interfaz web**: Panel de control accesible desde cualquier dispositivo en la red local
 
 ## Requisitos
 
@@ -65,6 +66,32 @@ Para verificar que todo está configurado correctamente:
 ```bash
 python check_setup.py
 ```
+
+### Interfaz Web 🖥️
+
+El bot incluye una **interfaz web completa** accesible desde cualquier dispositivo en tu red local:
+
+```bash
+kaillera-bot-web
+```
+
+O con opciones personalizadas:
+
+```bash
+kaillera-bot-web --host 0.0.0.0 --port 5000
+```
+
+**Funcionalidades:**
+- ✅ Panel de control en tiempo real
+- ✅ Iniciar/Detener el bot
+- ✅ Ver servidores y partidas activas
+- ✅ Descargar grabaciones
+- ✅ Ver logs en vivo
+- ✅ Editar configuración
+
+**Acceso:** `http://localhost:5000` o `http://<tu-ip-local>:5000`
+
+Ver [WEB_INTERFACE.md](WEB_INTERFACE.md) para documentación completa.
 
 ## Configuración
 
@@ -212,7 +239,9 @@ pip install --force-reinstall -e .
 ## Documentación Adicional
 
 - [QUICKSTART.md](QUICKSTART.md) - Guía de inicio rápido
+- [WEB_INTERFACE.md](WEB_INTERFACE.md) - Interfaz web completa
 - [AUTOMATION.md](AUTOMATION.md) - Automatización y detección de fin de partida
+- [FORMATS.md](FORMATS.md) - Formatos de grabación
 - [DEBUGGING.md](DEBUGGING.md) - Guía de debugging detallada
 - [SETUP.md](SETUP.md) - Setup en 3 pasos
 

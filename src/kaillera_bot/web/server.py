@@ -6,6 +6,7 @@ import logging
 import secrets
 import threading
 import time
+import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -258,6 +259,265 @@ class WebInterface:
             except Exception as e:
                 self.logger.error(f"Error actualizando configuración: {e}")
                 return jsonify({'success': False, 'message': 'Error interno'}), 500
+
+        @self.app.route('/api/config/save', methods=['POST'])
+        def save_config_to_file():
+            """Guarda la configuración en el archivo YAML."""
+            try:
+                new_config = request.json
+                
+                if not new_config or not isinstance(new_config, dict):
+                    return jsonify({'success': False, 'message': 'Configuración inválida'}), 400
+                
+                if not self._validate_config(new_config):
+                    return jsonify({'success': False, 'message': 'Configuración contiene valores no permitidos'}), 400
+                
+                config_path = Path('config/settings.yaml')
+                backup_path = Path('config/settings.yaml.bak')
+                
+                if config_path.exists():
+                    import shutil
+                    shutil.copy2(config_path, backup_path)
+                
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(new_config, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                
+                self.bot.config.update(new_config)
+                
+                return jsonify({'success': True, 'message': 'Configuración guardada en archivo'})
+            except Exception as e:
+                self.logger.error(f"Error guardando configuración: {e}")
+                return jsonify({'success': False, 'message': f'Error al guardar: {str(e)}'}), 500
+
+        @self.app.route('/api/config/schema', methods=['GET'])
+        def get_config_schema():
+            """Obtiene el schema de configuración para la interfaz."""
+            schema = {
+                'emulator': {
+                    'label': 'Emulador',
+                    'icon': 'bi-cpu',
+                    'fields': {
+                        'executable_path': {
+                            'type': 'text',
+                            'label': 'Ruta del ejecutable',
+                            'description': 'Ruta completa al ejecutable del emulador'
+                        },
+                        'process_name': {
+                            'type': 'text',
+                            'label': 'Nombre del proceso',
+                            'description': 'Nombre del proceso del emulador'
+                        },
+                        'window_title': {
+                            'type': 'text',
+                            'label': 'Título de ventana',
+                            'description': 'Título de la ventana del emulador'
+                        },
+                        'roms_directory': {
+                            'type': 'text',
+                            'label': 'Directorio de ROMs',
+                            'description': 'Ruta al directorio de ROMs'
+                        },
+                        'startup_delay': {
+                            'type': 'number',
+                            'label': 'Delay de inicio (seg)',
+                            'description': 'Tiempo de espera antes de iniciar',
+                            'min': 1,
+                            'max': 60
+                        }
+                    }
+                },
+                'kaillera': {
+                    'label': 'Kaillera',
+                    'icon': 'bi-globe',
+                    'fields': {
+                        'scan_interval': {
+                            'type': 'number',
+                            'label': 'Intervalo de escaneo (seg)',
+                            'description': 'Cada cuántos segundos escanear servidores',
+                            'min': 10,
+                            'max': 300
+                        }
+                    },
+                    'subsections': {
+                        'servers': {
+                            'type': 'list',
+                            'label': 'Servidores',
+                            'description': 'Lista de servidores Kaillera',
+                            'item_fields': {
+                                'name': {'type': 'text', 'label': 'Nombre'},
+                                'address': {'type': 'text', 'label': 'Dirección'},
+                                'port': {'type': 'number', 'label': 'Puerto', 'min': 1, 'max': 65535}
+                            }
+                        },
+                        'filters': {
+                            'type': 'object',
+                            'label': 'Filtros',
+                            'fields': {
+                                'games': {
+                                    'type': 'list',
+                                    'label': 'Juegos permitidos',
+                                    'item_type': 'text'
+                                },
+                                'min_players': {
+                                    'type': 'number',
+                                    'label': 'Mín. jugadores',
+                                    'min': 1,
+                                    'max': 4
+                                },
+                                'max_players': {
+                                    'type': 'number',
+                                    'label': 'Máx. jugadores',
+                                    'min': 2,
+                                    'max': 8
+                                }
+                            }
+                        }
+                    }
+                },
+                'recording': {
+                    'label': 'Grabación',
+                    'icon': 'bi-record-circle',
+                    'fields': {
+                        'output_directory': {
+                            'type': 'text',
+                            'label': 'Directorio de salida',
+                            'description': 'Donde se guardarán las grabaciones'
+                        },
+                        'filename_pattern': {
+                            'type': 'text',
+                            'label': 'Patrón de nombre',
+                            'description': 'Patrón para nombres de archivo'
+                        }
+                    },
+                    'subsections': {
+                        'video': {
+                            'type': 'object',
+                            'label': 'Video',
+                            'fields': {
+                                'enabled': {'type': 'boolean', 'label': 'Habilitado'},
+                                'format': {
+                                    'type': 'select',
+                                    'label': 'Formato',
+                                    'options': ['mp4', 'avi', 'mkv']
+                                },
+                                'fps': {
+                                    'type': 'number',
+                                    'label': 'FPS',
+                                    'min': 15,
+                                    'max': 120
+                                },
+                                'codec': {
+                                    'type': 'select',
+                                    'label': 'Codec',
+                                    'options': ['mp4v', 'xvid', 'h264']
+                                },
+                                'quality': {
+                                    'type': 'select',
+                                    'label': 'Calidad',
+                                    'options': ['low', 'medium', 'high', 'ultra']
+                                }
+                            }
+                        },
+                        'inputs': {
+                            'type': 'object',
+                            'label': 'Inputs',
+                            'fields': {
+                                'enabled': {'type': 'boolean', 'label': 'Habilitado'},
+                                'format': {
+                                    'type': 'select',
+                                    'label': 'Formato',
+                                    'options': ['json', 'csv']
+                                }
+                            }
+                        },
+                        'network': {
+                            'type': 'object',
+                            'label': 'Red',
+                            'fields': {
+                                'enabled': {'type': 'boolean', 'label': 'Habilitado'},
+                                'format': {
+                                    'type': 'select',
+                                    'label': 'Formato',
+                                    'options': ['json', 'pcap']
+                                }
+                            }
+                        }
+                    }
+                },
+                'automation': {
+                    'label': 'Automatización',
+                    'icon': 'bi-robot',
+                    'fields': {
+                        'auto_join': {
+                            'type': 'boolean',
+                            'label': 'Auto-unirse',
+                            'description': 'Unirse automáticamente a partidas'
+                        },
+                        'auto_record': {
+                            'type': 'boolean',
+                            'label': 'Auto-grabar',
+                            'description': 'Grabar automáticamente las partidas'
+                        },
+                        'auto_disconnect': {
+                            'type': 'boolean',
+                            'label': 'Auto-desconectar',
+                            'description': 'Desconectar automáticamente al terminar'
+                        },
+                        'max_recording_duration': {
+                            'type': 'number',
+                            'label': 'Duración máx. (seg)',
+                            'description': 'Duración máxima de grabación',
+                            'min': 60,
+                            'max': 7200
+                        },
+                        'inactivity_timeout': {
+                            'type': 'number',
+                            'label': 'Timeout inactividad (seg)',
+                            'description': 'Tiempo sin actividad antes de detener',
+                            'min': 30,
+                            'max': 1800
+                        },
+                        'no_players_timeout': {
+                            'type': 'number',
+                            'label': 'Timeout sin jugadores (seg)',
+                            'description': 'Tiempo sin jugadores antes de detener',
+                            'min': 10,
+                            'max': 300
+                        }
+                    }
+                },
+                'logging': {
+                    'label': 'Logs',
+                    'icon': 'bi-terminal',
+                    'fields': {
+                        'level': {
+                            'type': 'select',
+                            'label': 'Nivel de log',
+                            'options': ['DEBUG', 'INFO', 'WARNING', 'ERROR']
+                        },
+                        'file': {
+                            'type': 'text',
+                            'label': 'Archivo de log',
+                            'description': 'Ruta al archivo de logs'
+                        },
+                        'max_size': {
+                            'type': 'number',
+                            'label': 'Tamaño máx. (bytes)',
+                            'description': 'Tamaño máximo del archivo de log',
+                            'min': 1048576,
+                            'max': 104857600
+                        },
+                        'backup_count': {
+                            'type': 'number',
+                            'label': 'Backups',
+                            'description': 'Número de archivos de backup',
+                            'min': 0,
+                            'max': 20
+                        }
+                    }
+                }
+            }
+            return jsonify(schema)
 
         @self.app.route('/api/servers', methods=['GET'])
         def get_servers():

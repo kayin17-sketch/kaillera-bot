@@ -107,3 +107,78 @@ pre {
     border: 1px solid #dee2e6;
     border-radius: 5px;
 }
+
+.config-menu {
+    position: sticky;
+    top: 1rem;
+}
+
+.config-menu .list-group-item {
+    border-left: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.config-menu .list-group-item:hover {
+    background-color: #f8f9fa;
+    border-left-color: #0d6efd;
+}
+
+.config-menu .list-group-item.active {
+    background-color: #e7f1ff;
+    border-left-color: #0d6efd;
+    color: #0d6efd;
+    font-weight: 500;
+}
+
+.config-subsection {
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+}
+
+.config-subsection h6 {
+    color: #495057;
+}
+
+.list-item {
+    transition: all 0.2s ease;
+}
+
+.list-item:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.form-check-input:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+#config-form-container .form-label {
+    font-weight: 500;
+    color: #212529;
+}
+
+#config-form-container .text-muted {
+    font-size: 0.85rem;
+}
+
+#config-section-title {
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .config-menu {
+        position: relative;
+        margin-bottom: 1rem;
+    }
+    
+    .config-menu .list-group-item {
+        padding: 0.75rem 1rem;
+    }
+}

@@ -1,19 +1,22 @@
-// Kaillera Bot Web Interface
 class KailleraBotUI {
     constructor() {
         this.socket = null;
         this.connected = false;
         this.statusUpdateInterval = null;
         this.currentRecordingType = 'videos';
+        this.config = null;
+        this.configSchema = null;
+        this.originalConfig = null;
+        this.currentSection = null;
         
         this.init();
     }
 
-    init() {
+    async init() {
         this.connectWebSocket();
         this.setupEventListeners();
         this.startStatusUpdates();
-        this.loadInitialData();
+        await this.loadInitialData();
     }
 
     connectWebSocket() {
@@ -54,12 +57,10 @@ class KailleraBotUI {
     }
 
     setupEventListeners() {
-        // Botones de control
         document.getElementById('btn-start').addEventListener('click', () => this.startBot());
         document.getElementById('btn-stop').addEventListener('click', () => this.stopBot());
         document.getElementById('btn-refresh').addEventListener('click', () => this.refreshAll());
 
-        // Tabs de grabaciones
         document.querySelectorAll('#recordings-tabs a').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -71,17 +72,18 @@ class KailleraBotUI {
             });
         });
 
-        // Limpiar logs
         document.getElementById('btn-clear-logs').addEventListener('click', () => {
             document.getElementById('logs-container').textContent = '';
         });
 
-        // Guardar configuración
         document.getElementById('btn-save-config').addEventListener('click', () => this.saveConfig());
+        document.getElementById('btn-reset-config').addEventListener('click', () => this.resetConfig());
+        
+        document.getElementById('btn-add-server').addEventListener('click', () => this.addServer());
+        document.getElementById('btn-add-game').addEventListener('click', () => this.addGame());
     }
 
     startStatusUpdates() {
-        // Solicitar actualización de estado cada 2 segundos
         this.statusUpdateInterval = setInterval(() => {
             if (this.connected) {
                 this.socket.emit('request_status');
@@ -105,7 +107,6 @@ class KailleraBotUI {
     }
 
     updateStatus(status) {
-        // Estado del bot
         const botStatusEl = document.getElementById('bot-status');
         if (status.running) {
             botStatusEl.innerHTML = '<span class="badge bg-success">Ejecutando</span>';
@@ -117,21 +118,17 @@ class KailleraBotUI {
             document.getElementById('btn-stop').disabled = true;
         }
 
-        // Conexión
         const connectionInfo = status.connected 
             ? `${status.server || 'Conectado'}` 
             : 'Desconectado';
         document.getElementById('connection-info').textContent = connectionInfo;
 
-        // Juego actual
         document.getElementById('current-game').textContent = 
             status.current_game || 'Ninguno';
 
-        // Duración
         const duration = this.formatDuration(status.recording_duration);
         document.getElementById('recording-duration').textContent = duration;
 
-        // Grabaciones activas
         this.updateRecordingStatus(status.recordings);
     }
 
@@ -325,35 +322,367 @@ class KailleraBotUI {
 
     async loadConfig() {
         try {
-            const response = await fetch('/api/config');
-            const config = await response.json();
+            const [configRes, schemaRes] = await Promise.all([
+                fetch('/api/config'),
+                fetch('/api/config/schema')
+            ]);
             
-            const configDisplay = document.getElementById('config-display');
-            configDisplay.textContent = JSON.stringify(config, null, 2);
+            this.config = await configRes.json();
+            this.configSchema = await schemaRes.json();
+            this.originalConfig = JSON.parse(JSON.stringify(this.config));
+            
+            this.renderConfigMenu();
         } catch (error) {
             console.error('Error cargando configuración:', error);
         }
     }
 
+    renderConfigMenu() {
+        const menu = document.getElementById('config-menu');
+        menu.innerHTML = '';
+        
+        for (const [sectionKey, sectionData] of Object.entries(this.configSchema)) {
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = 'list-group-item list-group-item-action d-flex align-items-center';
+            item.innerHTML = `<i class="bi ${sectionData.icon} me-2"></i> ${sectionData.label}`;
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('.config-menu .list-group-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                this.renderConfigSection(sectionKey);
+            });
+            menu.appendChild(item);
+        }
+    }
+
+    renderConfigSection(sectionKey) {
+        this.currentSection = sectionKey;
+        const sectionData = this.configSchema[sectionKey];
+        const sectionConfig = this.config[sectionKey];
+        
+        document.getElementById('config-section-title').innerHTML = 
+            `<i class="bi ${sectionData.icon}"></i> ${sectionData.label}`;
+        
+        const container = document.getElementById('config-form-container');
+        let html = '';
+        
+        if (sectionData.fields) {
+            html += this.renderFields(sectionKey, sectionData.fields, sectionConfig);
+        }
+        
+        if (sectionData.subsections) {
+            for (const [subKey, subData] of Object.entries(sectionData.subsections)) {
+                html += `<div class="config-subsection mt-4">
+                    <h6 class="border-bottom pb-2 mb-3">${subData.label}</h6>`;
+                
+                if (subData.type === 'list') {
+                    html += this.renderListField(`${sectionKey}.${subKey}`, subData, sectionConfig[subKey] || []);
+                } else if (subData.type === 'object') {
+                    html += this.renderFields(`${sectionKey}.${subKey}`, subData.fields, sectionConfig[subKey] || {});
+                }
+                
+                html += '</div>';
+            }
+        }
+        
+        container.innerHTML = html;
+        this.attachConfigListeners(container);
+    }
+
+    renderFields(path, fieldsSchema, config) {
+        let html = '';
+        
+        for (const [fieldKey, fieldData] of Object.entries(fieldsSchema)) {
+            const fieldPath = `${path}.${fieldKey}`;
+            const value = config[fieldKey];
+            
+            html += `<div class="mb-3">
+                <label class="form-label">${fieldData.label}</label>`;
+            
+            if (fieldData.description) {
+                html += `<small class="d-block text-muted mb-1">${fieldData.description}</small>`;
+            }
+            
+            switch (fieldData.type) {
+                case 'text':
+                    html += `<input type="text" class="form-control" 
+                        data-path="${fieldPath}" 
+                        value="${this.escapeHtml(value || '')}">`;
+                    break;
+                    
+                case 'number':
+                    html += `<input type="number" class="form-control" 
+                        data-path="${fieldPath}" 
+                        value="${value || 0}"
+                        ${fieldData.min !== undefined ? `min="${fieldData.min}"` : ''}
+                        ${fieldData.max !== undefined ? `max="${fieldData.max}"` : ''}>`;
+                    break;
+                    
+                case 'boolean':
+                    html += `<div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" 
+                            data-path="${fieldPath}" 
+                            ${value ? 'checked' : ''}>
+                        <label class="form-check-label">${fieldData.label}</label>
+                    </div>`;
+                    break;
+                    
+                case 'select':
+                    html += `<select class="form-select" data-path="${fieldPath}">
+                        ${fieldData.options.map(opt => 
+                            `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`
+                        ).join('')}
+                    </select>`;
+                    break;
+            }
+            
+            html += '</div>';
+        }
+        
+        return html;
+    }
+
+    renderListField(path, listSchema, items) {
+        let html = '';
+        
+        if (listSchema.item_fields) {
+            html += `<div class="list-items" data-list-path="${path}">`;
+            
+            items.forEach((item, index) => {
+                html += `<div class="card mb-2 list-item" data-index="${index}">
+                    <div class="card-body py-2">
+                        <div class="row align-items-center">`;
+                
+                for (const [fieldKey, fieldData] of Object.entries(listSchema.item_fields)) {
+                    const fieldPath = `${path}[${index}].${fieldKey}`;
+                    const colSize = Math.floor(12 / Object.keys(listSchema.item_fields).length);
+                    
+                    html += `<div class="col-${colSize}">`;
+                    
+                    if (fieldData.type === 'text') {
+                        html += `<input type="text" class="form-control form-control-sm" 
+                            data-path="${fieldPath}" 
+                            placeholder="${fieldData.label}"
+                            value="${this.escapeHtml(item[fieldKey] || '')}">`;
+                    } else if (fieldData.type === 'number') {
+                        html += `<input type="number" class="form-control form-control-sm" 
+                            data-path="${fieldPath}" 
+                            placeholder="${fieldData.label}"
+                            value="${item[fieldKey] || 0}"
+                            ${fieldData.min !== undefined ? `min="${fieldData.min}"` : ''}
+                            ${fieldData.max !== undefined ? `max="${fieldData.max}"` : ''}>`;
+                    }
+                    
+                    html += '</div>';
+                }
+                
+                html += `<div class="col-auto">
+                    <button type="button" class="btn btn-outline-danger btn-sm btn-remove-item" data-path="${path}" data-index="${index}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>`;
+                
+                html += `</div></div></div>`;
+            });
+            
+            html += '</div>';
+            
+            if (path.includes('servers')) {
+                html += `<button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addServerModal">
+                    <i class="bi bi-plus"></i> Agregar Servidor
+                </button>`;
+            } else if (path.includes('games')) {
+                html += `<button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addGameModal">
+                    <i class="bi bi-plus"></i> Agregar Juego
+                </button>`;
+            }
+        } else if (listSchema.item_type === 'text') {
+            html += `<div class="list-items" data-list-path="${path}">`;
+            
+            items.forEach((item, index) => {
+                html += `<div class="input-group mb-2 list-item" data-index="${index}">
+                    <input type="text" class="form-control" 
+                        data-path="${path}[${index}]" 
+                        value="${this.escapeHtml(item || '')}">
+                    <button type="button" class="btn btn-outline-danger btn-remove-item" data-path="${path}" data-index="${index}">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>`;
+            });
+            
+            html += '</div>';
+            
+            html += `<button type="button" class="btn btn-outline-primary btn-sm btn-add-simple-item" data-path="${path}">
+                <i class="bi bi-plus"></i> Agregar
+            </button>`;
+        }
+        
+        return html;
+    }
+
+    attachConfigListeners(container) {
+        container.querySelectorAll('input, select').forEach(input => {
+            input.addEventListener('change', () => this.updateConfigValue(input));
+            if (input.type === 'text' || input.type === 'number') {
+                input.addEventListener('input', () => this.updateConfigValue(input));
+            }
+        });
+        
+        container.querySelectorAll('.btn-remove-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const path = btn.dataset.path;
+                const index = parseInt(btn.dataset.index);
+                this.removeListItem(path, index);
+            });
+        });
+        
+        container.querySelectorAll('.btn-add-simple-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const path = btn.dataset.path;
+                this.addSimpleListItem(path);
+            });
+        });
+    }
+
+    updateConfigValue(input) {
+        const path = input.dataset.path;
+        let value;
+        
+        if (input.type === 'checkbox') {
+            value = input.checked;
+        } else if (input.type === 'number') {
+            value = parseFloat(input.value);
+        } else {
+            value = input.value;
+        }
+        
+        this.setNestedValue(this.config, path, value);
+    }
+
+    setNestedValue(obj, path, value) {
+        const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
+        let current = obj;
+        
+        for (let i = 0; i < parts.length - 1; i++) {
+            const part = parts[i];
+            if (!current[part]) {
+                current[part] = isNaN(parts[i + 1]) ? {} : [];
+            }
+            current = current[part];
+        }
+        
+        current[parts[parts.length - 1]] = value;
+    }
+
+    getNestedValue(obj, path) {
+        const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
+        let current = obj;
+        
+        for (const part of parts) {
+            if (current === undefined || current === null) return undefined;
+            current = current[part];
+        }
+        
+        return current;
+    }
+
+    removeListItem(path, index) {
+        const list = this.getNestedValue(this.config, path);
+        if (Array.isArray(list)) {
+            list.splice(index, 1);
+            this.renderConfigSection(this.currentSection);
+        }
+    }
+
+    addSimpleListItem(path) {
+        const list = this.getNestedValue(this.config, path) || [];
+        if (!Array.isArray(this.getNestedValue(this.config, path))) {
+            this.setNestedValue(this.config, path, list);
+        }
+        list.push('');
+        this.renderConfigSection(this.currentSection);
+    }
+
+    addServer() {
+        const name = document.getElementById('new-server-name').value.trim();
+        const address = document.getElementById('new-server-address').value.trim();
+        const port = parseInt(document.getElementById('new-server-port').value) || 27888;
+        
+        if (!name || !address) {
+            this.showNotification('Nombre y dirección son requeridos', 'warning');
+            return;
+        }
+        
+        if (!this.config.kaillera.servers) {
+            this.config.kaillera.servers = [];
+        }
+        
+        this.config.kaillera.servers.push({ name, address, port });
+        
+        bootstrap.Modal.getInstance(document.getElementById('addServerModal')).hide();
+        document.getElementById('new-server-name').value = '';
+        document.getElementById('new-server-address').value = '';
+        document.getElementById('new-server-port').value = '27888';
+        
+        if (this.currentSection === 'kaillera') {
+            this.renderConfigSection('kaillera');
+        }
+        
+        this.showNotification('Servidor agregado', 'success');
+    }
+
+    addGame() {
+        const name = document.getElementById('new-game-name').value.trim();
+        
+        if (!name) {
+            this.showNotification('El nombre del juego es requerido', 'warning');
+            return;
+        }
+        
+        if (!this.config.kaillera.filters.games) {
+            this.config.kaillera.filters.games = [];
+        }
+        
+        this.config.kaillera.filters.games.push(name);
+        
+        bootstrap.Modal.getInstance(document.getElementById('addGameModal')).hide();
+        document.getElementById('new-game-name').value = '';
+        
+        if (this.currentSection === 'kaillera') {
+            this.renderConfigSection('kaillera');
+        }
+        
+        this.showNotification('Juego agregado', 'success');
+    }
+
     async saveConfig() {
         try {
-            const configText = document.getElementById('config-display').textContent;
-            const config = JSON.parse(configText);
-            
-            const response = await fetch('/api/config', {
+            const response = await fetch('/api/config/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
+                body: JSON.stringify(this.config)
             });
             const data = await response.json();
             
             if (data.success) {
-                this.showNotification('Configuración guardada', 'success');
+                this.originalConfig = JSON.parse(JSON.stringify(this.config));
+                this.showNotification(data.message, 'success');
             } else {
                 this.showNotification(data.message, 'danger');
             }
         } catch (error) {
             this.showNotification('Error al guardar: ' + error.message, 'danger');
+        }
+    }
+
+    resetConfig() {
+        if (confirm('¿Estás seguro de resetear los cambios? Se perderán todas las modificaciones no guardadas.')) {
+            this.config = JSON.parse(JSON.stringify(this.originalConfig));
+            if (this.currentSection) {
+                this.renderConfigSection(this.currentSection);
+            }
+            this.showNotification('Configuración reseteada', 'info');
         }
     }
 
@@ -374,7 +703,6 @@ class KailleraBotUI {
         const logsContainer = document.getElementById('logs-container');
         logsContainer.textContent += '\n' + line;
         
-        // Auto-scroll si está al final
         if (logsContainer.scrollHeight - logsContainer.scrollTop === logsContainer.clientHeight) {
             logsContainer.scrollTop = logsContainer.scrollHeight;
         }
@@ -394,7 +722,6 @@ class KailleraBotUI {
     }
 
     showNotification(message, type = 'info') {
-        // Crear notificación toast
         const toast = document.createElement('div');
         toast.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
         toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
@@ -405,12 +732,10 @@ class KailleraBotUI {
         
         document.body.appendChild(toast);
         
-        // Auto-remover después de 3 segundos
         setTimeout(() => {
             toast.remove();
         }, 3000);
     }
 }
 
-// Inicializar UI
 const ui = new KailleraBotUI();

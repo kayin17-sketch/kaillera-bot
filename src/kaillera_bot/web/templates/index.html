@@ -249,14 +249,81 @@
 
             <!-- Config Tab -->
             <div class="tab-pane fade" id="config" role="tabpanel">
-                <div class="card">
-                    <div class="card-body">
-                        <pre id="config-display" class="bg-light p-3" style="max-height: 600px; overflow-y: auto;">
-Cargando configuración...
-                        </pre>
-                        <button class="btn btn-primary mt-2" id="btn-save-config">
-                            <i class="bi bi-save"></i> Guardar Configuración
-                        </button>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="list-group config-menu" id="config-menu">
+                        </div>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span id="config-section-title"><i class="bi bi-sliders"></i> Configuración</span>
+                                <div>
+                                    <button class="btn btn-outline-secondary btn-sm me-2" id="btn-reset-config">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Resetear
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" id="btn-save-config">
+                                        <i class="bi bi-save"></i> Guardar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body" id="config-form-container">
+                                <div class="text-center text-muted py-5">
+                                    <i class="bi bi-arrow-left" style="font-size: 2rem;"></i>
+                                    <p class="mt-2">Selecciona una sección del menú izquierdo</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="addServerModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Agregar Servidor</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" class="form-control" id="new-server-name">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Dirección</label>
+                                <input type="text" class="form-control" id="new-server-address">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Puerto</label>
+                                <input type="number" class="form-control" id="new-server-port" value="27888">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="btn-add-server">Agregar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal fade" id="addGameModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Agregar Juego</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre del juego</label>
+                                <input type="text" class="form-control" id="new-game-name" placeholder="Ej: Mario Kart 64">
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" id="btn-add-game">Agregar</button>
+                        </div>
                     </div>
                 </div>
             </div>

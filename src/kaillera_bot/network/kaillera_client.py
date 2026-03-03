@@ -162,8 +162,8 @@ class KailleraClient:
         msg_num = self._next_message_number()
         
         username_bytes = self.username.encode('latin-1') + b'\x00'
-        client_type = b"Mupen64Plus 2.0\x00"
-        connection_type = b'\x02'
+        client_type = b"RMG-K v0.8.21\x00"
+        connection_type = b'\x01'
         
         body = username_bytes + client_type + connection_type
         msg_length = 1 + len(body)

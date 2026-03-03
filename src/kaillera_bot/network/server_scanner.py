@@ -338,8 +338,8 @@ class ServerScanner:
     def _build_login_message(self, username: str) -> bytes:
         """Construye mensaje de login v086."""
         username_bytes = username.encode('latin-1') + b'\x00'
-        client_type = b"KailleraBot 1.0\x00"
-        connection_type = b'\x02'
+        client_type = b"RMG-K v0.8.21\x00"
+        connection_type = b'\x01'
         
         body = username_bytes + client_type + connection_type
         msg_length = 1 + len(body)

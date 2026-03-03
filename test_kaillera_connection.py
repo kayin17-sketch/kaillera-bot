@@ -3,6 +3,7 @@
 
 import socket
 import sys
+import time as time_module
 
 def parse_server_status(data):
     """Parsea mensaje ServerStatus."""
@@ -145,14 +146,31 @@ def test_kaillera_server(address, port=27888):
                         print(f"   Enviando ACK: {ack_msg.hex()}")
                         sock.sendto(ack_msg, (address, port))
                         
-                        print("   Esperando mensajes (10 segundos)...")
-                        sock.settimeout(2)
+                        print("   Esperando mensajes (30 segundos)...")
+                        sock.settimeout(3)
                         
-                        for i in range(5):
+                        msg_count = 0
+                        last_ack_time = 0
+                        
+                        for i in range(30):
                             try:
+                                current_time = time_module.time()
+                                if current_time - last_ack_time > 5:
+                                    ack_response = b"\x01"
+                                    ack_response += (msg_count).to_bytes(2, 'little')
+                                    ack_response += (17).to_bytes(2, 'little')
+                                    ack_response += b"\x06"
+                                    ack_response += (0).to_bytes(4, 'little')
+                                    ack_response += (1).to_bytes(4, 'little')
+                                    ack_response += (2).to_bytes(4, 'little')
+                                    ack_response += (3).to_bytes(4, 'little')
+                                    sock.sendto(ack_response, (address, port))
+                                    last_ack_time = current_time
+                                    print(f"   Enviado ACK keepalive")
+                                
                                 data, addr = sock.recvfrom(8192)
-                                print(f"\n   Mensaje {i+1}: Recibido {len(data)} bytes")
-                                print(f"   Datos hex: {data[:100].hex()}...")
+                                msg_count += 1
+                                print(f"\n   Mensaje {msg_count}: Recibido {len(data)} bytes")
                                 
                                 if len(data) > 5:
                                     msg_type = data[5]
@@ -161,11 +179,14 @@ def test_kaillera_server(address, port=27888):
                                     if msg_type == 0x04:
                                         print("\n   *** ServerStatus recibido! ***")
                                         parse_server_status(data)
-                                        break
+                                        return
                                     elif msg_type == 0x05:
                                         print("   ServerAck (keepalive)")
+                                    else:
+                                        print(f"   Otro tipo de mensaje: {msg_type:#x}")
+                                        
                             except socket.timeout:
-                                print(f"   Timeout esperando mensaje {i+1}")
+                                pass
         else:
             print(f"   Respuesta inesperada: {data[:20]}")
         

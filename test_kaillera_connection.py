@@ -32,7 +32,7 @@ def test_kaillera_server(address, port=27888):
             connection_type = b"\x02"
             
             body = username + client_type + connection_type
-            msg_length = 5 + len(body)
+            msg_length = 1 + len(body)
             
             login_msg = b"\x01"
             login_msg += (0).to_bytes(2, 'little')
@@ -40,6 +40,7 @@ def test_kaillera_server(address, port=27888):
             login_msg += b"\x03"
             login_msg += body
             
+            print(f"   Body length: {len(body)}, Total msg_length: {msg_length}")
             print(f"   Mensaje login: {login_msg.hex()}")
             sock.sendto(login_msg, (address, port))
             

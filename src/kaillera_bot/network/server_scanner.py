@@ -283,17 +283,20 @@ class ServerScanner:
     
     def _build_login_message(self, username: str) -> bytes:
         """Construye mensaje de login v086."""
-        msg_count = b'\x01'
+        username_bytes = username.encode('latin-1') + b'\x00'
+        client_type = b"KailleraBot 1.0\x00"
+        connection_type = b'\x02'
         
-        msg_number = (0).to_bytes(2, 'little')
-        msg_length = (5 + len(username) + 1 + 15 + 1).to_bytes(2, 'little')
-        msg_type = b'\x03'
+        body = username_bytes + client_type + connection_type
+        msg_length = 1 + len(body)
         
-        body = username.encode('latin-1') + b'\x00'
-        body += b"KailleraBot 1.0\x00"
-        body += b'\x02'
+        bundle = b'\x01'
+        bundle += (0).to_bytes(2, 'little')
+        bundle += msg_length.to_bytes(2, 'little')
+        bundle += b'\x03'
+        bundle += body
         
-        return msg_count + msg_number + msg_length + msg_type + body
+        return bundle
     
     def _parse_game_list_v086(self, data: bytes, server: ServerInfo) -> List[GameSession]:
         """Parsea la lista de partidas del protocolo v086."""

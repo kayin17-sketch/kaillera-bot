@@ -166,8 +166,7 @@ class KailleraClient:
         connection_type = b'\x02'
         
         body = username_bytes + client_type + connection_type
-        
-        msg_length = 5 + len(body)
+        msg_length = 1 + len(body)
         
         bundle = b'\x01'
         bundle += msg_num.to_bytes(2, 'little')

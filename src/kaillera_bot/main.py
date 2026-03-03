@@ -70,7 +70,11 @@ class KailleraBot:
         self.logger.info("=== Iniciando Kaillera Bot ===")
         self.running = True
 
-        self._setup_signal_handlers()
+        try:
+            self._setup_signal_handlers()
+        except ValueError:
+            self.logger.debug("Signal handlers no disponibles en este thread")
+        
         self._initialize_components()
         self._start_automation()
 

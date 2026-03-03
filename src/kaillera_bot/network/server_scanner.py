@@ -241,38 +241,46 @@ class ServerScanner:
     def scan_server_games(self, server: ServerInfo) -> List[GameSession]:
         """Escanea las partidas en un servidor específico manteniendo conexion."""
         sessions = []
+        self.logger.info(f"[SCAN] Iniciando escaneo de {server.name}...")
 
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.settimeout(1)
             
             hello_msg = b"HELLO0.83\x00"
+            self.logger.info(f"[SCAN] Enviando HELLO a {server.address}")
             sock.sendto(hello_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
+            self.logger.info(f"[SCAN] Recibido: {data.hex()}")
             
             if not data.startswith(b"HELLOD00D"):
-                self.logger.warning(f"Respuesta HELLO invalida de {server.address}")
+                self.logger.warning(f"[SCAN] Respuesta HELLO invalida de {server.address}")
                 sock.close()
                 return sessions
             
             login_msg = self._build_login_message("KailleraBot")
+            self.logger.info(f"[SCAN] Enviando login: {login_msg.hex()}")
             sock.sendto(login_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
+            self.logger.info(f"[SCAN] Respuesta login: {data.hex()}")
             
             if len(data) > 5 and data[5] == 0x05:
                 msg_num = int.from_bytes(data[1:3], 'little')
+                self.logger.info(f"[SCAN] ServerAck recibido, msg_num={msg_num}")
                 
                 ack_msg = self._build_client_ack(msg_num)
                 sock.sendto(ack_msg, (server.address, server.port))
                 
-                for _ in range(15):
+                for i in range(15):
                     try:
                         data, _ = sock.recvfrom(8192)
+                        self.logger.info(f"[SCAN] Mensaje {i+1}: {data.hex()}")
                         
                         if len(data) > 0:
                             msg_count = data[0]
+                            self.logger.info(f"[SCAN] Bundle con {msg_count} mensajes")
                             pos = 1
                             
                             for _ in range(msg_count):
@@ -286,8 +294,12 @@ class ServerScanner:
                                 msg_type = data[pos]
                                 pos += 1
                                 
+                                self.logger.info(f"[SCAN]   - msg_type: {msg_type:#x}")
+                                
                                 if msg_type == 0x04:
+                                    self.logger.info(f"[SCAN] ServerStatus encontrado!")
                                     sessions = self._parse_game_list_v086(data, server)
+                                    self.logger.info(f"[SCAN] {len(sessions)} partidas encontradas")
                                     sock.close()
                                     for session in sessions:
                                         self.sessions.append(session)
@@ -307,7 +319,7 @@ class ServerScanner:
             sock.close()
             
         except Exception as e:
-            self.logger.debug(f"Error escaneando {server.address}: {e}")
+            self.logger.error(f"[SCAN] Error escaneando {server.address}: {type(e).__name__}: {e}")
 
         return sessions
     

@@ -100,17 +100,11 @@ class ServerScanner:
                     port=server_config.get('port', self.KAILLERA_PORT)
                 )
                 
-                ping = self.ping_server(server)
-                server.ping = ping
-                
-                if ping >= 0:
-                    self.servers.append(server)
-                    self.logger.info(f"Servidor configurado accesible: {server.name} ({server.address}:{server.port})")
-                else:
-                    self.logger.warning(f"Servidor configurado no accesible: {server.name} ({server.address}:{server.port})")
+                self.servers.append(server)
+                self.logger.info(f"Servidor configurado: {server.name} ({server.address}:{server.port})")
                     
             except Exception as e:
-                self.logger.error(f"Error verificando servidor configurado: {e}")
+                self.logger.error(f"Error agregando servidor configurado: {e}")
 
         self.logger.info(f"Encontrados {len(self.servers)} servidores")
         return self.servers
@@ -292,24 +286,38 @@ class ServerScanner:
         return self.sessions
 
     def ping_server(self, server: ServerInfo) -> int:
-        """Calcula el ping a un servidor."""
+        """Calcula el ping a un servidor usando TCP o UDP."""
         try:
             start = time.time()
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(self.SCAN_TIMEOUT)
-            sock.connect((server.address, server.port))
-            sock.close()
-            return int((time.time() - start) * 1000)
+            
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(self.SCAN_TIMEOUT)
+                sock.connect((server.address, server.port))
+                sock.close()
+                return int((time.time() - start) * 1000)
+            except:
+                pass
+            
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(self.SCAN_TIMEOUT)
+                sock.sendto(b'\x00', (server.address, server.port))
+                sock.recv(1024)
+                sock.close()
+                return int((time.time() - start) * 1000)
+            except:
+                pass
+            
+            try:
+                result = socket.getaddrinfo(server.address, None)
+                if result:
+                    return 1
+            except:
+                pass
+            
+            return -1
 
-        except socket.timeout:
-            self.logger.debug(f"Timeout conectando a {server.address}:{server.port}")
-            return -1
-        except socket.gaierror as e:
-            self.logger.debug(f"Error DNS para {server.address}: {e}")
-            return -1
-        except ConnectionRefusedError:
-            self.logger.debug(f"Conexión rechazada por {server.address}:{server.port}")
-            return -1
         except Exception as e:
             self.logger.debug(f"Error haciendo ping a {server.address}:{server.port}: {type(e).__name__}: {e}")
             return -1

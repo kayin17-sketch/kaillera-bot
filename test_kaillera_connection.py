@@ -4,6 +4,79 @@
 import socket
 import sys
 
+def parse_server_status(data):
+    """Parsea mensaje ServerStatus."""
+    if len(data) < 10:
+        print("   Datos muy cortos")
+        return
+    
+    pos = 6
+    pos += 1
+    num_users = int.from_bytes(data[pos:pos+4], 'little')
+    pos += 4
+    num_games = int.from_bytes(data[pos:pos+4], 'little')
+    pos += 4
+    
+    print(f"   Usuarios: {num_users}, Partidas: {num_games}")
+    
+    users = []
+    for i in range(num_users):
+        name_start = pos
+        while pos < len(data) and data[pos] != 0:
+            pos += 1
+        name = data[name_start:pos].decode('latin-1', errors='ignore')
+        pos += 1
+        ping = int.from_bytes(data[pos:pos+4], 'little')
+        pos += 4
+        status = data[pos]
+        pos += 1
+        user_id = int.from_bytes(data[pos:pos+2], 'little')
+        pos += 2
+        conn_type = data[pos]
+        pos += 1
+        users.append({'name': name, 'ping': ping, 'id': user_id})
+    
+    print(f"   Lista de usuarios:")
+    for u in users:
+        print(f"     - {u['name']} (ping: {u['ping']}ms)")
+    
+    games = []
+    for i in range(num_games):
+        name_start = pos
+        while pos < len(data) and data[pos] != 0:
+            pos += 1
+        game_name = data[name_start:pos].decode('latin-1', errors='ignore')
+        pos += 1
+        game_id = int.from_bytes(data[pos:pos+4], 'little')
+        pos += 4
+        
+        client_start = pos
+        while pos < len(data) and data[pos] != 0:
+            pos += 1
+        client = data[client_start:pos].decode('latin-1', errors='ignore')
+        pos += 1
+        
+        creator_start = pos
+        while pos < len(data) and data[pos] != 0:
+            pos += 1
+        creator = data[creator_start:pos].decode('latin-1', errors='ignore')
+        pos += 1
+        
+        players_start = pos
+        while pos < len(data) and data[pos] != 0:
+            pos += 1
+        players_str = data[players_start:pos].decode('latin-1', errors='ignore')
+        pos += 1
+        
+        status = data[pos] if pos < len(data) else 0
+        pos += 1
+        
+        games.append({'name': game_name, 'id': game_id, 'creator': creator, 'players': players_str})
+    
+    print(f"   Lista de partidas:")
+    for g in games:
+        print(f"     - {g['name']} ({g['players']}) por {g['creator']}")
+
 def test_kaillera_server(address, port=27888):
     print(f"Probando conexion a {address}:{port}")
     
@@ -56,6 +129,34 @@ def test_kaillera_server(address, port=27888):
                     msg_len = int.from_bytes(data[3:5], 'little')
                     msg_type = data[5]
                     print(f"   Msg num: {msg_num}, Msg len: {msg_len}, Msg type: {msg_type:#x}")
+                    
+                    if msg_type == 0x05:
+                        print("\n3. ServerAck recibido, enviando ClientAck...")
+                        ack_msg = b"\x01"
+                        ack_msg += msg_num.to_bytes(2, 'little')
+                        ack_msg += (17).to_bytes(2, 'little')
+                        ack_msg += b"\x06"
+                        ack_msg += b"\x00"
+                        ack_msg += (0).to_bytes(4, 'little')
+                        ack_msg += (1).to_bytes(4, 'little')
+                        ack_msg += (2).to_bytes(4, 'little')
+                        ack_msg += (3).to_bytes(4, 'little')
+                        
+                        print(f"   Enviando ACK: {ack_msg.hex()}")
+                        sock.sendto(ack_msg, (address, port))
+                        
+                        print("   Esperando ServerStatus...")
+                        data, addr = sock.recvfrom(8192)
+                        print(f"   Recibido {len(data)} bytes")
+                        print(f"   Datos hex: {data[:200].hex()}...")
+                        
+                        if len(data) > 5:
+                            msg_type = data[5]
+                            print(f"   Msg type: {msg_type:#x}")
+                            
+                            if msg_type == 0x04:
+                                print("\n   ServerStatus recibido!")
+                                parse_server_status(data)
         else:
             print(f"   Respuesta inesperada: {data[:20]}")
         

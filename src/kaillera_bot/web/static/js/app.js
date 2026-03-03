@@ -359,7 +359,9 @@ class KailleraBotUI {
     renderConfigSection(sectionKey) {
         this.currentSection = sectionKey;
         const sectionData = this.configSchema[sectionKey];
-        const sectionConfig = this.config[sectionKey];
+        const sectionConfig = this.config[sectionKey] || {};
+        
+        console.log('Rendering section:', sectionKey, 'config:', sectionConfig);
         
         document.getElementById('config-section-title').innerHTML = 
             `<i class="bi ${sectionData.icon}"></i> ${sectionData.label}`;
@@ -376,10 +378,13 @@ class KailleraBotUI {
                 html += `<div class="config-subsection mt-4">
                     <h6 class="border-bottom pb-2 mb-3">${subData.label}</h6>`;
                 
+                const subConfig = sectionConfig[subKey];
+                console.log('Subsection:', subKey, 'data:', subConfig);
+                
                 if (subData.type === 'list') {
-                    html += this.renderListField(`${sectionKey}.${subKey}`, subData, sectionConfig[subKey] || []);
+                    html += this.renderListField(`${sectionKey}.${subKey}`, subData, subConfig || []);
                 } else if (subData.type === 'object') {
-                    html += this.renderFields(`${sectionKey}.${subKey}`, subData.fields, sectionConfig[subKey] || {});
+                    html += this.renderFields(`${sectionKey}.${subKey}`, subData.fields, subConfig || {});
                 }
                 
                 html += '</div>';

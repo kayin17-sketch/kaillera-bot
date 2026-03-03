@@ -173,6 +173,19 @@ class KailleraBot:
         scan_interval = kaillera_config.get('scan_interval', 30)
         filters = kaillera_config.get('filters', {})
 
+        configured_servers = kaillera_config.get('servers', [])
+        if configured_servers and self.client:
+            first_server = configured_servers[0]
+            self.logger.info(f"Conectando a servidor configurado: {first_server.get('name')}")
+            
+            if self.client.connect(
+                first_server.get('address'),
+                first_server.get('port', 27888)
+            ):
+                self.logger.info("Conectado al servidor exitosamente")
+            else:
+                self.logger.warning("No se pudo conectar al servidor")
+
         self.scanner.start_continuous_scan(
             interval=scan_interval,
             game_filter=filters.get('games', []),

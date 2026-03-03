@@ -173,18 +173,22 @@ class ServerScanner:
             while self.scanning:
                 try:
                     self.scan_master_servers()
+                    self.logger.info(f"Escaneando {len(self.servers)} servidores...")
 
                     for server in self.servers:
-                        if server.players >= min_players:
-                            sessions = self.scan_server_games(server)
+                        self.logger.debug(f"Escaneando servidor: {server.name}")
+                        sessions = self.scan_server_games(server)
+                        self.logger.info(f"Encontradas {len(sessions)} partidas en {server.name}")
 
-                            if self.on_game_found:
-                                for session in sessions:
-                                    if game_filter:
-                                        if any(g.lower() in session.game_name.lower() for g in game_filter):
-                                            self.on_game_found(session)
-                                    else:
+                        if self.on_game_found:
+                            for session in sessions:
+                                if game_filter:
+                                    if any(g.lower() in session.game_name.lower() for g in game_filter):
+                                        self.logger.info(f"Partida coincide con filtro: {session.game_name}")
                                         self.on_game_found(session)
+                                else:
+                                    self.logger.info(f"Partida encontrada: {session.game_name}")
+                                    self.on_game_found(session)
 
                     time.sleep(interval)
 
@@ -239,6 +243,7 @@ class ServerScanner:
         sessions = []
 
         try:
+            self.logger.debug(f"Enviando HELLO a {server.address}:{server.port}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.settimeout(self.SCAN_TIMEOUT)
             
@@ -246,19 +251,23 @@ class ServerScanner:
             sock.sendto(hello_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
+            self.logger.debug(f"Respuesta recibida: {len(data)} bytes - {data[:20]}")
             
             if not data.startswith(b"HELLOD00D"):
-                self.logger.debug(f"Respuesta invalida de {server.address}")
+                self.logger.warning(f"Respuesta invalida de {server.address}: {data[:20]}")
                 sock.close()
                 return sessions
             
+            self.logger.debug(f"HELLOD00D recibido, enviando login...")
             login_msg = self._build_login_message("KailleraBot")
             sock.sendto(login_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
+            self.logger.debug(f"Respuesta login: {len(data)} bytes")
             sock.close()
             
             sessions = self._parse_game_list_v086(data, server)
+            self.logger.info(f"Parseadas {len(sessions)} partidas de {server.name}")
             
             for session in sessions:
                 self.sessions.append(session)
@@ -266,9 +275,9 @@ class ServerScanner:
                     self.on_game_found(session)
 
         except socket.timeout:
-            self.logger.debug(f"Timeout escaneando juegos en {server.address}")
+            self.logger.warning(f"Timeout escaneando juegos en {server.address}:{server.port}")
         except Exception as e:
-            self.logger.debug(f"Error escaneando juegos en {server.address}: {e}")
+            self.logger.error(f"Error escaneando juegos en {server.address}:{server.port}: {type(e).__name__}: {e}")
 
         return sessions
     

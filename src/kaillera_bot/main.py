@@ -121,7 +121,10 @@ class KailleraBot:
             startup_delay=emu_config.get('startup_delay', 5)
         )
 
-        self.scanner = ServerScanner()
+        kaillera_config = self.config['kaillera']
+        configured_servers = kaillera_config.get('servers', [])
+        
+        self.scanner = ServerScanner(configured_servers=configured_servers)
         self.scanner.on_game_found = self._on_game_found
 
         self.client = KailleraClient(username="KailleraBot")

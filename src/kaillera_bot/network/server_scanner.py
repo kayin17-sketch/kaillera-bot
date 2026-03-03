@@ -70,17 +70,18 @@ class ServerScanner:
     KAILLERA_PORT = 27888
     SCAN_TIMEOUT = 5
 
-    def __init__(self):
+    def __init__(self, configured_servers: Optional[List[Dict]] = None):
         self.logger = logging.getLogger(__name__)
         self.servers: List[ServerInfo] = []
         self.sessions: List[GameSession] = []
         self.scanning = False
+        self.configured_servers = configured_servers or []
 
         self.on_server_found: Optional[Callable[[ServerInfo], None]] = None
         self.on_game_found: Optional[Callable[[GameSession], None]] = None
 
     def scan_master_servers(self) -> List[ServerInfo]:
-        """Escanea los servidores maestros de Kaillera."""
+        """Escanea los servidores maestros de Kaillera y los servidores configurados."""
         self.servers = []
 
         for master in self.MASTER_SERVERS:
@@ -90,6 +91,26 @@ class ServerScanner:
 
             except Exception as e:
                 self.logger.error(f"Error escaneando {master}: {e}")
+
+        for server_config in self.configured_servers:
+            try:
+                server = ServerInfo(
+                    name=server_config.get('name', 'Unknown'),
+                    address=server_config.get('address', ''),
+                    port=server_config.get('port', self.KAILLERA_PORT)
+                )
+                
+                ping = self.ping_server(server)
+                server.ping = ping
+                
+                if ping >= 0:
+                    self.servers.append(server)
+                    self.logger.info(f"Servidor configurado accesible: {server.name} ({server.address}:{server.port})")
+                else:
+                    self.logger.warning(f"Servidor configurado no accesible: {server.name} ({server.address}:{server.port})")
+                    
+            except Exception as e:
+                self.logger.error(f"Error verificando servidor configurado: {e}")
 
         self.logger.info(f"Encontrados {len(self.servers)} servidores")
         return self.servers

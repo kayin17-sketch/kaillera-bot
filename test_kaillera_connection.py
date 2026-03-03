@@ -166,15 +166,16 @@ def test_kaillera_server(address, port=27888):
                                     ack_response += (3).to_bytes(4, 'little')
                                     sock.sendto(ack_response, (address, port))
                                     last_ack_time = current_time
-                                    print(f"   Enviado ACK keepalive")
                                 
                                 data, addr = sock.recvfrom(8192)
                                 msg_count += 1
-                                print(f"\n   Mensaje {msg_count}: Recibido {len(data)} bytes")
+                                print(f"\n   Mensaje {msg_count}: {len(data)} bytes - HEX: {data.hex()}")
                                 
                                 if len(data) > 5:
                                     msg_type = data[5]
-                                    print(f"   Msg type: {msg_type:#x}")
+                                    msg_num = int.from_bytes(data[1:3], 'little')
+                                    msg_len = int.from_bytes(data[3:5], 'little')
+                                    print(f"   Msg num: {msg_num}, len: {msg_len}, type: {msg_type:#x}")
                                     
                                     if msg_type == 0x04:
                                         print("\n   *** ServerStatus recibido! ***")
@@ -182,8 +183,6 @@ def test_kaillera_server(address, port=27888):
                                         return
                                     elif msg_type == 0x05:
                                         print("   ServerAck (keepalive)")
-                                    else:
-                                        print(f"   Otro tipo de mensaje: {msg_type:#x}")
                                         
                             except socket.timeout:
                                 pass

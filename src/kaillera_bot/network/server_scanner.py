@@ -248,11 +248,22 @@ class ServerScanner:
             sock.settimeout(1)
             
             hello_msg = b"HELLO0.83\x00"
-            self.logger.info(f"[SCAN] Enviando HELLO a {server.address}")
+            self.logger.info(f"[SCAN] Enviando HELLO a {server.address}:{server.port}")
             sock.sendto(hello_msg, (server.address, server.port))
             
-            data, _ = sock.recvfrom(8192)
-            self.logger.info(f"[SCAN] Recibido: {data.hex()}")
+            data, addr = sock.recvfrom(8192)
+            self.logger.info(f"[SCAN] Recibido de {addr}: {data.hex()}")
+            
+            if data.startswith(b"HELLOD00D"):
+                port_str = data[9:].rstrip(b'\x00').decode('latin-1')
+                try:
+                    new_port = int(port_str)
+                    self.logger.info(f"[SCAN] Servidor asigno puerto: {new_port}")
+                    if new_port != server.port:
+                        server.port = new_port
+                        self.logger.info(f"[SCAN] Cambiando a puerto {new_port}")
+                except:
+                    pass
             
             if not data.startswith(b"HELLOD00D"):
                 self.logger.warning(f"[SCAN] Respuesta HELLO invalida de {server.address}")
@@ -325,11 +336,6 @@ class ServerScanner:
                                     self.logger.info(f"[SCAN] Usuario conectado")
                                 
                                 pos += bundle_msg_len - 5
-                            
-                            if not found_server_status:
-                                ack_msg = self._build_client_ack(bundle_msg_num)
-                                sock.sendto(ack_msg, (server.address, server.port))
-                                self.logger.info(f"[SCAN] ACK enviado para mensaje {bundle_msg_num}")
                                 
                     except socket.timeout:
                         continue

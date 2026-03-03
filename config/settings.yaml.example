@@ -1,23 +1,32 @@
 emulator:
-  executable_path: "/usr/bin/rmg"
+  executable_path: "/path/to/RMG"
   process_name: "rmg"
   window_title: "Rosalie's Mupen GUI"
   
-  roms_directory: "/home/user/roms/n64"
+  roms_directory: "/path/to/roms"
   
   startup_delay: 5
   
 kaillera:
   servers:
-    - name: "Kaillera Master Server"
-      address: "master.kaillera.com"
+    # Servidor local para pruebas
+    - name: "Localhost"
+      address: "127.0.0.1"
       port: 27888
+    
+    # Agrega aquí servidores conocidos
+    # - name: "Servidor Privado"
+    #   address: "192.168.1.XXX"
+    #   port: 27888
   
   scan_interval: 30
   
+  # IMPORTANTE: Desactivar si no hay servidores disponibles
+  auto_scan: false
+  
   filters:
     games: []
-    min_players: 2
+    min_players: 1  # Cambiado a 1 para pruebas locales
     max_players: 4
     
 recording:
@@ -41,16 +50,16 @@ recording:
   filename_pattern: "{game}_{date}_{time}_{players}"
   
 automation:
-  auto_join: true
-  auto_record: true
+  auto_join: false  # DESACTIVADO hasta configurar servidor
+  auto_record: false  # Activar grabación manual
   auto_disconnect: true
   
-  max_recording_duration: 3600  # 1 hora máximo
-  inactivity_timeout: 300       # 5 minutos sin datos = fin de partida
-  no_players_timeout: 30        # 30 segundos sin jugadores = fin de partida
+  max_recording_duration: 3600
+  inactivity_timeout: 300
+  no_players_timeout: 30
   
 logging:
-  level: "INFO"
+  level: "DEBUG"  # Cambiado a DEBUG para ver más detalles
   file: "logs/kaillera_bot.log"
   max_size: 10485760
   backup_count: 5

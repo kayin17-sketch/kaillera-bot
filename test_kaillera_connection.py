@@ -145,18 +145,27 @@ def test_kaillera_server(address, port=27888):
                         print(f"   Enviando ACK: {ack_msg.hex()}")
                         sock.sendto(ack_msg, (address, port))
                         
-                        print("   Esperando ServerStatus...")
-                        data, addr = sock.recvfrom(8192)
-                        print(f"   Recibido {len(data)} bytes")
-                        print(f"   Datos hex: {data[:200].hex()}...")
+                        print("   Esperando mensajes (10 segundos)...")
+                        sock.settimeout(2)
                         
-                        if len(data) > 5:
-                            msg_type = data[5]
-                            print(f"   Msg type: {msg_type:#x}")
-                            
-                            if msg_type == 0x04:
-                                print("\n   ServerStatus recibido!")
-                                parse_server_status(data)
+                        for i in range(5):
+                            try:
+                                data, addr = sock.recvfrom(8192)
+                                print(f"\n   Mensaje {i+1}: Recibido {len(data)} bytes")
+                                print(f"   Datos hex: {data[:100].hex()}...")
+                                
+                                if len(data) > 5:
+                                    msg_type = data[5]
+                                    print(f"   Msg type: {msg_type:#x}")
+                                    
+                                    if msg_type == 0x04:
+                                        print("\n   *** ServerStatus recibido! ***")
+                                        parse_server_status(data)
+                                        break
+                                    elif msg_type == 0x05:
+                                        print("   ServerAck (keepalive)")
+                            except socket.timeout:
+                                print(f"   Timeout esperando mensaje {i+1}")
         else:
             print(f"   Respuesta inesperada: {data[:20]}")
         

@@ -102,7 +102,7 @@ def test_kaillera_server(address, port=27888):
             
             print("\n2. Enviando login v086...")
             username = b"TestBot\x00"
-            client_type = b"TestClient 1.0\x00"
+            client_type = b"Mupen64Plus 2.0\x00"
             connection_type = b"\x02"
             
             body = username + client_type + connection_type

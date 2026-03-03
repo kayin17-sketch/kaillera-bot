@@ -143,21 +143,21 @@ def test_kaillera_server(address, port=27888):
                         ack_msg += (3).to_bytes(4, 'little')
                         
                         print(f"   ACK body length: {len(ack_msg) - 5}")
-                        print(f"   Enviando ACK: {ack_msg.hex()}")
+                        print(f"   Enviando ACK (msg_num={msg_num}): {ack_msg.hex()}")
                         sock.sendto(ack_msg, (address, port))
+                        last_ack_time = time_module.time()
                         
                         print("   Esperando mensajes (30 segundos)...")
                         sock.settimeout(3)
                         
                         msg_count = 0
-                        last_ack_time = 0
                         
                         for i in range(30):
                             try:
                                 current_time = time_module.time()
                                 if current_time - last_ack_time > 5:
                                     ack_response = b"\x01"
-                                    ack_response += (msg_count).to_bytes(2, 'little')
+                                    ack_response += msg_num.to_bytes(2, 'little')
                                     ack_response += (17).to_bytes(2, 'little')
                                     ack_response += b"\x06"
                                     ack_response += (0).to_bytes(4, 'little')

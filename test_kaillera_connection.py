@@ -171,18 +171,33 @@ def test_kaillera_server(address, port=27888):
                                 msg_count += 1
                                 print(f"\n   Mensaje {msg_count}: {len(data)} bytes - HEX: {data.hex()}")
                                 
-                                if len(data) > 5:
-                                    msg_type = data[5]
-                                    msg_num = int.from_bytes(data[1:3], 'little')
-                                    msg_len = int.from_bytes(data[3:5], 'little')
-                                    print(f"   Msg num: {msg_num}, len: {msg_len}, type: {msg_type:#x}")
+                                if len(data) > 0:
+                                    msg_count_in_bundle = data[0]
+                                    print(f"   Messages in bundle: {msg_count_in_bundle}")
                                     
-                                    if msg_type == 0x04:
-                                        print("\n   *** ServerStatus recibido! ***")
-                                        parse_server_status(data)
-                                        return
-                                    elif msg_type == 0x05:
-                                        print("   ServerAck (keepalive)")
+                                    pos = 1
+                                    for j in range(msg_count_in_bundle):
+                                        if pos + 5 > len(data):
+                                            break
+                                            
+                                        msg_num_r = int.from_bytes(data[pos:pos+2], 'little')
+                                        pos += 2
+                                        msg_len = int.from_bytes(data[pos:pos+2], 'little')
+                                        pos += 2
+                                        msg_type = data[pos]
+                                        pos += 1
+                                        
+                                        print(f"   [Msg {j+1}] num: {msg_num_r}, len: {msg_len}, type: {msg_type:#x}")
+                                        
+                                        if msg_type == 0x04:
+                                            print("\n   *** ServerStatus recibido! ***")
+                                            parse_server_status(data)
+                                            return
+                                        elif msg_type == 0x05:
+                                            msg_num = msg_num_r
+                                            print("   ServerAck (keepalive)")
+                                        
+                                        pos += msg_len - 5
                                         
                             except socket.timeout:
                                 pass

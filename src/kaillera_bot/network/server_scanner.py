@@ -239,19 +239,17 @@ class ServerScanner:
             return -1
     
     def scan_server_games(self, server: ServerInfo) -> List[GameSession]:
-        """Escanea las partidas en un servidor específico usando UDP."""
+        """Escanea las partidas en un servidor específico manteniendo conexion."""
         sessions = []
 
         try:
-            self.logger.debug(f"Enviando HELLO a {server.address}:{server.port}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(self.SCAN_TIMEOUT)
+            sock.settimeout(1)
             
             hello_msg = b"HELLO0.83\x00"
             sock.sendto(hello_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
-            self.logger.debug(f"HELLO response: {len(data)} bytes")
             
             if not data.startswith(b"HELLOD00D"):
                 self.logger.warning(f"Respuesta HELLO invalida de {server.address}")
@@ -262,35 +260,38 @@ class ServerScanner:
             sock.sendto(login_msg, (server.address, server.port))
             
             data, _ = sock.recvfrom(8192)
-            self.logger.debug(f"Login response: {len(data)} bytes, type: {data[5] if len(data) > 5 else 'N/A':#x}")
             
             if len(data) > 5 and data[5] == 0x05:
                 msg_num = int.from_bytes(data[1:3], 'little')
-                ack_msg = self._build_client_ack(msg_num)
-                sock.sendto(ack_msg, (server.address, server.port))
                 
-                sock.settimeout(2)
-                for _ in range(5):
+                for _ in range(10):
+                    ack_msg = self._build_client_ack(msg_num)
+                    sock.sendto(ack_msg, (server.address, server.port))
+                    
                     try:
                         data, _ = sock.recvfrom(8192)
-                        if len(data) > 5 and data[5] == 0x04:
-                            self.logger.info(f"ServerStatus recibido de {server.name}")
-                            sessions = self._parse_game_list_v086(data, server)
-                            break
+                        if len(data) > 5:
+                            msg_type = data[5]
+                            
+                            if msg_type == 0x04:
+                                sessions = self._parse_game_list_v086(data, server)
+                                break
+                            elif msg_type == 0x05:
+                                msg_num = int.from_bytes(data[1:3], 'little')
+                                continue
                     except socket.timeout:
                         continue
             
             sock.close()
             
+        except Exception as e:
+            self.logger.debug(f"Error escaneando {server.address}: {e}")
+
+        if sessions:
             for session in sessions:
                 self.sessions.append(session)
                 if self.on_game_found:
                     self.on_game_found(session)
-
-        except socket.timeout:
-            self.logger.warning(f"Timeout escaneando juegos en {server.address}:{server.port}")
-        except Exception as e:
-            self.logger.error(f"Error escaneando juegos en {server.address}:{server.port}: {type(e).__name__}: {e}")
 
         return sessions
     

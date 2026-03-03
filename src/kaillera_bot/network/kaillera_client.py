@@ -269,11 +269,11 @@ class KailleraClient:
                     self.logger.debug(f"Error recibiendo datos: {e}")
 
     def _ack_loop(self) -> None:
-        """Loop para enviar ACKs periódicos."""
+        """Loop para enviar ACKs periódicos y mantener conexion."""
         while self.running and self.connected:
             try:
                 time.sleep(5)
-                if self.connected:
+                if self.connected and self._socket:
                     ack = self._build_client_ack(self.message_number)
                     self._socket.sendto(ack, (self.server_address, self.server_port))
             except Exception as e:

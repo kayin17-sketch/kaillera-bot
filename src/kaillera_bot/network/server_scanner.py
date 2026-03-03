@@ -270,7 +270,7 @@ class ServerScanner:
                 sock.close()
                 return sessions
             
-            login_msg = self._build_login_message("Bot")
+            login_msg = self._build_login_message("Kayin")
             self.logger.info(f"[SCAN] Enviando login: {login_msg.hex()}")
             sock.sendto(login_msg, (server.address, server.port))
             

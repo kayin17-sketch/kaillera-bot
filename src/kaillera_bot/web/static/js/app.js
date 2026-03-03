@@ -391,10 +391,6 @@ class KailleraBotUI {
                 html += '</div>';
             }
         }
-                
-                html += '</div>';
-            }
-        }
         
         container.innerHTML = html;
         this.attachConfigListeners(container);

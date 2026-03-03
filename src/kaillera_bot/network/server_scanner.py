@@ -274,32 +274,39 @@ class ServerScanner:
                     ack_msg = self._build_client_ack(msg_num + i)
                     sock.sendto(ack_msg, (server.address, server.port))
                     self.logger.info(f"[SCAN] ACK {i+1} enviado")
-                    time.sleep(0.5)
+                    
+                    try:
+                        data, _ = sock.recvfrom(8192)
+                        self.logger.info(f"[SCAN] Respuesta ACK {i+1}: {data.hex()}")
+                    except socket.timeout:
+                        pass
+                    
+                    time.sleep(0.3)
                 
                 for i in range(15):
                     try:
                         data, _ = sock.recvfrom(8192)
                         self.logger.info(f"[SCAN] Mensaje {i+1}: {data.hex()}")
                         
-                        if len(data) > 0:
+                        if len(data) > 1:
                             msg_count = data[0]
                             self.logger.info(f"[SCAN] Bundle con {msg_count} mensajes")
                             pos = 1
                             
-                            for _ in range(msg_count):
+                            for m in range(msg_count):
                                 if pos + 5 > len(data):
                                     break
                                 
-                                msg_num = int.from_bytes(data[pos:pos+2], 'little')
+                                bundle_msg_num = int.from_bytes(data[pos:pos+2], 'little')
                                 pos += 2
-                                msg_len = int.from_bytes(data[pos:pos+2], 'little')
+                                bundle_msg_len = int.from_bytes(data[pos:pos+2], 'little')
                                 pos += 2
-                                msg_type = data[pos]
+                                bundle_msg_type = data[pos]
                                 pos += 1
                                 
-                                self.logger.info(f"[SCAN]   - msg_type: {msg_type:#x}")
+                                self.logger.info(f"[SCAN]   - Msg {m+1}: num={bundle_msg_num}, len={bundle_msg_len}, type={bundle_msg_type:#x}")
                                 
-                                if msg_type == 0x04:
+                                if bundle_msg_type == 0x04:
                                     self.logger.info(f"[SCAN] ServerStatus encontrado!")
                                     sessions = self._parse_game_list_v086(data, server)
                                     self.logger.info(f"[SCAN] {len(sessions)} partidas encontradas")
@@ -309,12 +316,12 @@ class ServerScanner:
                                         if self.on_game_found:
                                             self.on_game_found(session)
                                     return sessions
-                                elif msg_type == 0x05:
-                                    msg_num = int.from_bytes(data[pos-5:pos-3], 'little')
-                                    ack_msg = self._build_client_ack(msg_num)
-                                    sock.sendto(ack_msg, (server.address, server.port))
+                                elif bundle_msg_type == 0x05:
+                                    continue
+                                elif bundle_msg_type == 0x02:
+                                    self.logger.info(f"[SCAN] Usuario conectado")
                                 
-                                pos += msg_len - 5
+                                pos += bundle_msg_len - 5
                                 
                     except socket.timeout:
                         continue
